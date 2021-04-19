@@ -1,0 +1,4 @@
+<manifest projecttype="ACCOUNTCUSTOMIZATION">
+  <projectname>PX4-Gazebo</projectname>
+  <frameworkversion>1.0</frameworkversion>
+</manifest>
