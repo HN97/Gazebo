@@ -1,7 +1,7 @@
 # PX4-Gazebo
 
-1. Copy plugin realsense_gazebo_plugin to src folder.
-2. Copy package d435_camera to Tools/sitl_gazebo/models into foler PX4.
+1. Copy plugin [realsense_gazebo_plugin](https://github.com/pal-robotics/realsense_gazebo_plugin) to src folder.
+2. Copy package d435_camera to Tools/sitl_gazebo/models into foler [PX4](https://github.com/PX4/PX4-Autopilot).
 3. Add to file iris.sdf.
 ```
 <include>
@@ -34,3 +34,14 @@ outfile0 << var_gps_pose.pose.position.x << "\t" << var_gps_pose.pose.position.y
 
 2. Generate report.
 - Not ready.
+
+# Add new marker Aruco to gazebo
+
+1. Copy image generated above step into folder ```Tool/sitl_gazebo/models/aruco_visual_marker_4/textures```
+2. Modify ```scripts/aruco_visual_marker_4_marker.material``` with file name of image.
+```
+texture_unit
+{
+	texture aruco_mark_23.png
+}
+```

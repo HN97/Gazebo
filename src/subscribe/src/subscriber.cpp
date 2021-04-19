@@ -7,7 +7,6 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <iostream>
 #include <ros/ros.h>
-#include "std_msgs/String.h"
 #include <sstream>
 #include <fstream>
 #include <unistd.h>
@@ -16,34 +15,30 @@
 #include <mavros_msgs/CommandBool.h>
 #include <eigen3/Eigen/Geometry>
 #include <sensor_msgs/Imu.h>
+#include "std_msgs/String.h"
 #include "std_msgs/Float32.h"
-
-
-#define OFFSET_X           (-0.5)
-#define OFFSET_Y           0
-#define OFFSET_Z           0
-#define OFFSET_RESET       0
 
 using namespace std;
 using namespace Eigen;
 
 ros::Publisher custom_activity_pub;
 
-/*variable*/
+/*Variable*/
 geometry_msgs::PoseStamped pose;
 geometry_msgs::PoseStamped var_gps_pose;
+
+time_t baygio = time(0);
+tm *ltm       = localtime(&baygio);
+ofstream outfile0, outfile1, outfile2;
+
 static int LOCK                  = 10;
 static int number_check          = 0;
 static double var_offset_pose[3] = {0.0, 0.0, 0.0};
 static char var_active_status[20];
 static double x, y, z;
-static bool LOCK_LAND = true;
+static bool LOCK_LAND            = true;
 
-time_t baygio = time(0);
-tm *ltm = localtime(&baygio);
-ofstream outfile0, outfile1, outfile2;
-
-/*declaring a 3*3 matrix*/
+/*Declaring a 3*3 matrix*/
 Matrix3f R, cv_rotation, cam2imu_rotation;
 Vector3f positionbe, position_cam, positionaf, offset_marker;
 
@@ -58,62 +53,31 @@ void gpsCallback(const geometry_msgs::PoseStamped::ConstPtr &msg)
 
 void imuCallback(const sensor_msgs::Imu::ConstPtr &msg)
 {
-
     double x,y,z,w;
-
-    x=msg->orientation.x;
-    y=msg->orientation.y;
-    z=msg->orientation.z;
-    w=msg->orientation.w;
-    
-    /*making a quaternion of position*/
     Quaternionf quat;
+
+    x = msg->orientation.x;
+    y = msg->orientation.y;
+    z = msg->orientation.z;
+    w = msg->orientation.w;
+    /*making a quaternion of position*/
     quat = Eigen::Quaternionf(w,x,y,z);
-  
     /*making rotation matrix from quaternion*/
     R = quat.toRotationMatrix();
-    // auto euler = q.toRotationMatrix().eulerAngles(0, 1, 2);
-    // cout << "Euler from quaternion in roll, pitch, yaw"<< endl << euler << endl;
     tf2::Quaternion q;
     q.setValue(x, y, z, w);
     double roll, pitch, yaw;
     tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
     roll  = roll*(180/3.14);
     pitch = pitch*(180/3.14);
-    yaw   = yaw*(180/3.14);
-    // cout << "Roll: " << roll << ", Pitch: " << pitch << ", Yaw: " << yaw << endl;
-    // cout << "R=" << endl << R << endl;
+    yaw   = yaw*(180/3.14);;
 }
-
-// Eigen::Matrix3d rotation_from_euler(double roll, double pitch, double yaw){
-//     // roll and pitch and yaw in radians
-//     double su = sin(roll);
-//     double cu = cos(roll);
-//     double sv = sin(pitch);
-//     double cv = cos(pitch);
-//     double sw = sin(yaw);
-//     double cw = cos(yaw);
-//     Eigen::Matrix3d Rot_matrix(3, 3);
-//     Rot_matrix(0, 0) = cv*cw;
-//     Rot_matrix(0, 1) = su*sv*cw - cu*sw;
-//     Rot_matrix(0, 2) = su*sw + cu*sv*cw;
-//     Rot_matrix(1, 0) = cv*sw;
-//     Rot_matrix(1, 1) = cu*cw + su*sv*sw;
-//     Rot_matrix(1, 2) = cu*sv*sw - su*cw;
-//     Rot_matrix(2, 0) = -sv;
-//     Rot_matrix(2, 1) = su*cv;
-//     Rot_matrix(2, 2) = cu*cv;
-//     return Rot_matrix;
-// }
 
 static void get_params_cb(const tf2_msgs::TFMessage::ConstPtr& msg)
 {
     double xq,yq,zq,wq;
-    cam2imu_rotation << -0.0001 , -1 , 0 , -1 , 0 , 0 ,-0.0001 , 0 , -1;
-    offset_marker[0] = -0.5;
-    offset_marker[1] = 0;
-    offset_marker[2] = 0;
     Quaternionf quat;
+    cam2imu_rotation << -0.0001 , -1 , 0 , -1 , 0 , 0 ,-0.0001 , 0 , -1;
 
     position_cam[0] = (msg->transforms[0].transform.translation.x);
     position_cam[1] = (msg->transforms[0].transform.translation.y);
@@ -123,16 +87,6 @@ static void get_params_cb(const tf2_msgs::TFMessage::ConstPtr& msg)
     yq = msg->transforms[0].transform.rotation.y;
     zq = msg->transforms[0].transform.rotation.z;
     wq = msg->transforms[0].transform.rotation.w;
-    /* making a quaternion of position */
-    /* set position to marker size largest */
-    quat=Eigen::Quaternionf(wq,xq,yq,zq);
-    cv_rotation = quat.toRotationMatrix();
-    offset_marker = cv_rotation*offset_marker;
-    if ( 3 >= var_gps_pose.pose.position.z)
-    {
-        position_cam = position_cam + offset_marker;
-    }
-    /**/
     /* Aruco ----> Drone */
     positionbe = cam2imu_rotation*position_cam;
     /* Drone ----> NEU */
@@ -171,7 +125,7 @@ static void get_params_cb(const tf2_msgs::TFMessage::ConstPtr& msg)
         LOCK = 0;
     }
     number_check ++;
-    if (number_check == 70)
+    if(number_check == 70)
     {
         LOCK = 1;
         number_check = 0;
@@ -212,6 +166,7 @@ int main(int argc, char **argv)
     pose.pose.position.x = 2;
     pose.pose.position.y = 3;
     pose.pose.position.z = 7;
+
     // in cac thanh phan cua cau truc tm struct.
     cout << "Nam: "<< 1900 + ltm->tm_year << endl;
     cout << "Thang: "<< 1 + ltm->tm_mon<< endl;
@@ -232,11 +187,10 @@ int main(int argc, char **argv)
     custom_activity_pub = n.advertise<std_msgs::String>("cmd/set_activity/type",10);
     ros::Subscriber local_pos_sub = n.subscribe<geometry_msgs::PoseStamped>("mavros/setpoint_position/local", 10, local_pose_callback);
     ros::Publisher local_pos_pub1 = n.advertise<geometry_msgs::PoseStamped>("cmd/set_pose/position1", 30);
-
     ros::Rate rate(20.0);
+
     for(int i = 100; ros::ok() && i > 0; --i)
     {
-
         LOCK = 1;
         ros::spinOnce();
         rate.sleep();
@@ -252,10 +206,8 @@ int main(int argc, char **argv)
             outfile1.close();
             outfile2.close();
         }
-
         local_pos_pub1.publish(pose);
         ros::spinOnce();
-        // ros::spin();
         rate.sleep();
     }
 
