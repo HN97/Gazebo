@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package format="2">
-    <name>aruco_detector_ocv</name>
+    <name>aruco_detector</name>
     <version>0.1.1</version>
-    <description>The aruco_detector_ocv package.</description>
+    <description>The aruco_detector package.</description>
     <author email="markuslamprecht@live.de">Markus Lamprecht</author>
     <maintainer email="markuslamprecht@live.de">Markus Lamprecht</maintainer>
     <license>BSD</license>

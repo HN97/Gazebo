@@ -4,7 +4,7 @@
    @link    www.simact.de/about_me
    @Copyright (c) 2019 Markus Lamprecht. BSD
  *****************************************************************************/
- 
+
 #include <csignal>
 #include <iostream>
 #include <map> // used for hashmap to give certainty
@@ -23,21 +23,17 @@
 // ROS image geometry
 #include <image_geometry/pinhole_camera_model.h>
 
-// ROS transform
+/* ROS transform */
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2/LinearMath/Vector3.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2/LinearMath/Transform.h>
 #include <tf2_msgs/TFMessage.h>
-#include <alfons_msgs/ArucoInfo.h>
-
-// ROS CvBridge
+/* ROS CvBridge */
 #include "cv_bridge/cv_bridge.h"
-
-// Image Transport to publish output img
+/* Image Transport to publish output img */
 #include <image_transport/image_transport.h>
-
-// OpenCV
+/* OpenCV */
 #include <opencv2/highgui.hpp>
 #include <opencv2/aruco.hpp>
 #include <opencv2/imgproc.hpp>
@@ -46,31 +42,27 @@ using namespace std;
 using namespace sensor_msgs;
 using namespace cv;
 
-// Publisher
+/* Publisher */
 image_transport::Publisher result_img_pub_;
 image_geometry::PinholeCameraModel camera_model;
 ros::Publisher tf_list_pub_;
-ros::Publisher aruco_info_pub_;
 
 
 #define SSTR(x)         static_cast<std::ostringstream&>(std::ostringstream() << std::dec << x).str()
 #define ROUND2(x)       std::round(x * 100) / 100
 #define ROUND3(x)       std::round(x * 1000) / 1000
-#define IDLOW              4
-#define IDLARGE            6
+#define IDLOW              23
+#define IDLARGE            25
 #define SWITCH_ALTITUDE    5
 
-
 /* Define global variables */
-bool camera_model_computed= false;
+bool camera_model_computed = false;
 bool show_detections;
-bool enable_blur          = true;
-int blur_window_size      = 7;
-int image_fps             = 14;
-// int image_width           = 640;
-// int image_height          = 480;
-int image_width           = 1920;
-int image_height          = 1080;
+bool enable_blur           = true;
+int blur_window_size       = 7;
+int image_fps              = 14;
+int image_width            = 1920;
+int image_height           = 1080;
 /* Offset bwt the center of markers in coordinate marker*/
 float marker_size;
 string marker_tf_prefix;
@@ -84,9 +76,9 @@ std::ostringstream vector_to_marker;
 
 
 // hashmap used for uncertainty:
-int num_detected  = 10;  // =0 -> not used
-int min_prec_value= 80; // min precentage value to be a detected marker.
-int switch_ID     = 25;
+int num_detected   = 10;  // =0 -> not used
+int min_prec_value = 80; // min precentage value to be a detected marker.
+int switch_ID      = 25;
 map<int,  std::vector<int>  > ids_hashmap;   // key: ids, value: number within last 100 imgs
 
 
@@ -108,29 +100,33 @@ tf2::Vector3 cv_vector3d_to_tf_vector3(const Vec3d &vec) {
 double getPrec(std::vector<int> ids, int i)
 {
     vector<int> current_vector(num_detected);
-    current_vector = ids_hashmap[ids[i]];
+
+    current_vector     = ids_hashmap[ids[i]];
     int num_detections = std::accumulate(current_vector.begin(), current_vector.end(), 0);
+
     return (double) num_detections/num_detected *100;
 }
 
 tf2::Quaternion cv_vector3d_to_tf_quaternion(const Vec3d &rotation_vector) {
     Mat rotation_matrix;
-    auto ax = rotation_vector[0], ay = rotation_vector[1], az = rotation_vector[2];
-    auto angle= sqrt(ax * ax + ay * ay + az * az);
-    auto cosa = cos(angle * 0.5);
-    auto sina = sin(angle * 0.5);
-    auto qx   = ax * sina / angle;
-    auto qy   = ay * sina / angle;
-    auto qz   = az * sina / angle;
-    auto qw   = cosa;
+
+    auto ax    = rotation_vector[0], ay = rotation_vector[1], az = rotation_vector[2];
+    auto angle = sqrt(ax * ax + ay * ay + az * az);
+    auto cosa  = cos(angle * 0.5);
+    auto sina  = sin(angle * 0.5);
+    auto qx    = ax * sina / angle;
+    auto qy    = ay * sina / angle;
+    auto qz    = az * sina / angle;
+    auto qw    = cosa;
     tf2::Quaternion q;
     q.setValue(qx, qy, qz, qw);
     double roll, pitch, yaw;
     tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
-    roll = roll*(180/3.14);
-    pitch= pitch*(180/3.14);
-    yaw  = yaw*(180/3.14);
+    roll  = roll*(180/3.14);
+    pitch = pitch*(180/3.14);
+    yaw   = yaw*(180/3.14);
     // cout << "Roll: " << roll << ", Pitch: " << pitch << ", Yaw: " << yaw << endl;
+
     return q;
 }
 
@@ -154,8 +150,7 @@ void callback_camera_info(const CameraInfoConstPtr &msg) {
 
 void update_params_cb(const std_msgs::Empty &msg)
 {
-    // update the parameters:
-    //nh.getParam("/blur_window_size", blur_window_size);
+
 } 
 
 void callback(const ImageConstPtr &image_msg)
@@ -181,23 +176,6 @@ void callback(const ImageConstPtr &image_msg)
     /* Detect the markers */
     aruco::detectMarkers(image, dictionary, corners, ids_m, detector_params, rejected);
 
-    /* Publish aruco Info */
-    alfons_msgs::ArucoInfo ar_msg;
-    for(int i = 0;i<ids_m.size();i++)
-    {
-        //std_msgs::Int16 id_num = ;
-        vector<Point2f> one_corner = corners[i];
-        ar_msg.marker_ids.push_back(ids_m[i]);
-        ar_msg.center_x_px.push_back((one_corner[0].x+one_corner[1].x+one_corner[2].x+one_corner[3].x)/4);
-        ar_msg.center_y_px.push_back((one_corner[0].y+one_corner[1].y+one_corner[2].y+one_corner[3].y)/4);
-    }
-    ar_msg.header.stamp = ros::Time::now();
-    ar_msg.header.frame_id = "camera";
-    // aruco_info_pub_.publish(ar_msg);
-
-    // cv::line(display_image, cv::Point(320, 0), cv::Point(320, 480), cv::Scalar(245, 7, 96), 2);    /* y */
-    // cv::line(display_image, cv::Point(0, 240), cv::Point(640, 240), cv::Scalar(11, 220, 93), 2);   /* x */
-
     cv::line(display_image, cv::Point(960, 0), cv::Point(960, 1080), cv::Scalar(245, 7, 96), 2);    /* y */
     cv::line(display_image, cv::Point(0, 540), cv::Point(1920, 540), cv::Scalar(11, 220, 93), 2);   /* x */
  
@@ -214,56 +192,22 @@ void callback(const ImageConstPtr &image_msg)
         }
     }
 
-    // if(ids_m.size()>0)
-    // {
-    //     for(int i = 0;i<ids_m.size();i++)
-    //     {
-    //         if (ids_m[i] == switch_ID)
-    //         {
-    //             // ids.pop_back();
-    //             // corners_cvt.pop_back();
-    //             ROS_INFO("Marker size: [%f]", marker_size);
-    //             ids.push_back(ids_m[i]);
-    //             corners_cvt.push_back(corners[i]);
-    //             // cout << corners_cvt[0] << endl;
-    //         }
-    //     }
-    // }
-
-
     if(ids_m.size()>0)
     {
         for(int i = 0;i<ids_m.size();i++)
         {
             if (ids_m[i] == switch_ID)
             {
-                // ids.pop_back();
-                // corners_cvt.pop_back();
                 ROS_INFO("Marker ID: [%d]", ids_m[i]);
                 ROS_INFO("Marker size: [%f]", marker_size);
                 ids.push_back(ids_m[i]);
                 corners_cvt.push_back(corners[i]);
-                // cout << corners_cvt[0] << endl;
             }
         }
-
-
         /*Compute poses of markers*/
         vector<Vec3d> rotation_vectors, translation_vectors;
         aruco::estimatePoseSingleMarkers(corners_cvt, marker_size, intrinsic_matrix, distortion_coefficients,
                                          rotation_vectors, translation_vectors);
-
-        // cout << "SIZE: "<< rotation_vectors.size() <<endl;
-        // cout << "Matrix: "<< rotation_vectors[0][0] <<endl;
-        // cout << "Matrix: "<< rotation_vectors[0][1] <<endl;
-        // cout << "Matrix: "<< rotation_vectors[0][2] <<endl;
-
-  /*      Mat convert_rotation = Mat::zeros(3,3,CV_64F);
-        Rodrigues(rotation_vectors, convert_rotation);
-        for (vector<Vec3d>::const_iterator i = convert_rotation.begin(); i != convert_rotation.end(); ++i)
-        {
-            cout << "Matrix = " << endl << " "  << convert_rotation << endl << endl;
-        }*/
 
         for (auto i = 0; i < rotation_vectors.size(); ++i)
         {
@@ -290,17 +234,17 @@ void callback(const ImageConstPtr &image_msg)
             cv::putText( display_image, vector_to_marker.str(),
                         cv::Point(10, 145), cv::FONT_HERSHEY_SIMPLEX, 0.8,
                         CV_RGB(255, 255, 0), 2);
-            
-            // if (SWITCH_ALTITUDE > translation_vectors[0](2))
-            // {
-            //     switch_ID = IDLOW;
-            //     marker_size = 0.2;
-            // }
-            // else
-            // {
-            //     switch_ID = IDLARGE;
-            //     marker_size = 0.5;
-            // }
+
+            if (SWITCH_ALTITUDE > translation_vectors[0](2))
+            {
+                switch_ID = IDLOW;
+                marker_size = 0.2;
+            }
+            else
+            {
+                switch_ID = IDLARGE;
+                marker_size = 0.5;
+            }
             ROS_INFO("x: [%f]", translation_vectors[i](0));
             ROS_INFO("y: [%f]", translation_vectors[i](1));
             ROS_INFO("z: [%f]", translation_vectors[i](2));
@@ -334,29 +278,28 @@ void callback(const ImageConstPtr &image_msg)
 
         /*Create and publish tf message for each marker*/
         tf2_msgs::TFMessage tf_msg_list;
+
         for (auto i = 0; i < rotation_vectors.size(); ++i)
         {
-            // if(getPrec(ids,i)>min_prec_value)
-            // {
-                auto translation_vector = translation_vectors[i];
-                auto rotation_vector = rotation_vectors[i];
-                auto transform = create_transform(translation_vector, rotation_vector);
                 geometry_msgs::TransformStamped tf_msg;
-                tf_msg.header.stamp = stamp;
-                tf_msg.header.frame_id = frame_id;
                 stringstream ss;
+
+                auto translation_vector = translation_vectors[i];
+                auto rotation_vector    = rotation_vectors[i];
+                auto transform          = create_transform(translation_vector, rotation_vector);
                 ss << marker_tf_prefix << ids[i];
-                tf_msg.child_frame_id = ss.str();
+                tf_msg.header.stamp            = stamp;
+                tf_msg.header.frame_id         = frame_id;
+                tf_msg.child_frame_id          = ss.str();
                 tf_msg.transform.translation.x = transform.getOrigin().getX();
                 tf_msg.transform.translation.y = transform.getOrigin().getY();
                 tf_msg.transform.translation.z = transform.getOrigin().getZ();
-                tf_msg.transform.rotation.x = transform.getRotation().getX();
-                tf_msg.transform.rotation.y = transform.getRotation().getY();
-                tf_msg.transform.rotation.z = transform.getRotation().getZ();
-                tf_msg.transform.rotation.w = transform.getRotation().getW();
+                tf_msg.transform.rotation.x    = transform.getRotation().getX();
+                tf_msg.transform.rotation.y    = transform.getRotation().getY();
+                tf_msg.transform.rotation.z    = transform.getRotation().getZ();
+                tf_msg.transform.rotation.w    = transform.getRotation().getW();
                 tf_msg_list.transforms.push_back(tf_msg);
                 br.sendTransform(tf_msg);
-            // }
         }
         
         if( tf_msg_list.transforms.size() )
@@ -364,92 +307,12 @@ void callback(const ImageConstPtr &image_msg)
             tf_list_pub_.publish(tf_msg_list);
         }
     }
-
-    // rotate vector:
-    // [ 1 2 3 4 5 ]  --> [ 5 1 2 3 4 ]
-    // if(num_detected>0)
-    // {
-    //     //std::cout<<"ids size: vor erase"<<ids.size()<<std::endl;
-    //     map<int, vector<int>>::iterator il;
-    //     for ( il = ids_hashmap.begin(); il != ids_hashmap.end(); il++ )
-    //     {
-    //         vector<int> current_vector(num_detected);
-    //         current_vector = il->second;
-    //         rotate(current_vector.begin(),current_vector.end()-1,current_vector.end());
-    //         il->second = current_vector;
-    //     }
-
-    //     /* gehe alle in der Liste bestehenden durch */
-    //     map<int, vector<int>>::iterator it;
-    //     for ( it = ids_hashmap.begin(); it != ids_hashmap.end(); it++ )
-    //     {  
-    //         bool current_id_was_found = false;
-    //         for(int j=0;j<ids.size();j++)
-    //         {
-    //             if((ids[j] == it->first) && (it->second.size()>1))
-    //             {
-    //                 current_id_was_found = true;
-    //                 ids.erase (ids.begin()+j);
-    //                 //std::cout<<"erase "<<ids[j]<<"it first"<<it->first<<"size_second "<<it->second.size()<<std::endl;
-    //             }
-    //         }
-    //         vector<int> current_vector(num_detected);
-    //         current_vector = it->second;
-    //         current_vector[0] = 0;
-    //         if (current_id_was_found)
-    //         {
-    //             current_vector[0] =1;
-    //             //std::cout<<" 1 was set"<<it->first<<std::endl;
-    //         }
-
-    //         it->second = current_vector;
-    //     }
-
-    //     /* adde alle restlichen in ids (das sind die neu erkannten) */
-    //     for(int i = 0;i<ids.size();i++)
-    //     {
-    //         std::map<int, vector<int>>::iterator ittt = ids_hashmap.begin();
-    //         vector<int> tmpp(num_detected, 0);
-    //         tmpp[0] = 1;
-    //         std::string aa = "";
-    //         for(int i=0;i<num_detected;i++)
-    //         {
-    //             aa+=SSTR(tmpp[i])+",";
-    //         }
-    //         ids_hashmap.insert(make_pair(ids[i], tmpp));
-    //         //std::cout<<"added new: "<<ids[i]<<" "<<aa<<" size tmpp"<<tmpp.size()<<std::endl;
-    //     }
-
-    //     //// print the hashmap:
-    //     map<int, vector<int>>::iterator itt;
-    //     for ( itt = ids_hashmap.begin(); itt != ids_hashmap.end(); itt++ )
-    //     {
-    //         vector<int> tmp(num_detected, 0);
-    //         tmp = itt->second; 
-    //         // hack -> no idea why this is necessary
-    //         if(itt->second.size() ==0)
-    //         {
-    //             vector<int> tmpe(num_detected, 0);
-    //             tmpe[0] = 1;
-    //             itt->second =tmpe;
-    //         }
-    //         //end of hack
-    //         //std::string a = SSTR(itt->first)+"  "+SSTR(itt->second.size())+ " ";
-    //         //for(int i=0;i<tmp.size();i++)
-    //         //{
-    //         //    a+= SSTR(tmp[i])+",";
-    //         //}
-    //         //std::cout<<a<<std::endl;
-    //     }
-
-    // } // num_detected>0
 }
 
 /*TODO: slider extension mach ne hashmap von int,array*/
 
 int main(int argc, char **argv)
 {
-    int queue_size = 10;
     map<string, aruco::PREDEFINED_DICTIONARY_NAME> dictionary_names;
     dictionary_names.insert(pair<string, aruco::PREDEFINED_DICTIONARY_NAME>("DICT_4X4_50", aruco::DICT_4X4_50));
     dictionary_names.insert(pair<string, aruco::PREDEFINED_DICTIONARY_NAME>("DICT_4X4_100", aruco::DICT_4X4_100));
@@ -472,60 +335,49 @@ int main(int argc, char **argv)
     signal(SIGINT, int_handler);
 
     /*Initalize ROS node*/
+    int queue_size = 10;
     ros::init(argc, argv, "aruco_detect_node");
     ros::NodeHandle nh("~");
     string rgb_topic, rgb_info_topic, dictionary_name;
-    // nh.param("camera", rgb_topic, string("/kinect2/hd/image_color_rect"));
+
     nh.param("camera", rgb_topic, string("/camera/color/image_raw"));
     nh.param("camera_info", rgb_info_topic, string("/kinect2/hd/camera_info"));
     nh.param("show_detections", show_detections, true);
     nh.param("tf_prefix", marker_tf_prefix, string("marker"));
-    nh.param("marker_size", marker_size, 2.0f);
+    nh.param("marker_size", marker_size, 0.5f);
     nh.param("enable_blur", enable_blur, true);
     nh.param("blur_window_size", blur_window_size, 7);
-    nh.param("image_fps", image_fps, 30);
+    nh.param("image_fps", image_fps, 14);
     nh.param("image_width", image_width, 1920);
     nh.param("image_height", image_height, 1080);
-    // nh.param("image_width", image_width, 640);
-    // nh.param("image_height", image_height, 480);
     nh.param("num_detected", num_detected, 50);
     nh.param("min_prec_value", min_prec_value, 80);
 
     detector_params = aruco::DetectorParameters::create();
     detector_params->cornerRefinementMethod = aruco::CORNER_REFINE_SUBPIX;
-    nh.param("dictionary_name", dictionary_name, string("DICT_6X6_250"));
+    nh.param("dictionary_name", dictionary_name, string("DICT_6X6_250"));   /* default DICT_6X6_250 */
     nh.param("aruco_adaptiveThreshWinSizeStep", detector_params->adaptiveThreshWinSizeStep, 4);
     /* Configure ARUCO marker detector */
     dictionary = aruco::getPredefinedDictionary(dictionary_names[dictionary_name]);
     ROS_DEBUG("%f", marker_size);
-
-    if (show_detections)
-    {
-       // namedWindow("markers", cv::WINDOW_KEEPRATIO);
-    }
     /* gazebo plugin */
-    // ros::Subscriber rgb_sub = nh.subscribe("/iris/c920/image_raw", queue_size, callback);
-    // ros::Subscriber rgb_info_sub = nh.subscribe("/iris/c920/camera_info", queue_size, callback_camera_info);
     ros::Subscriber rgb_sub = nh.subscribe("/camera/color/image_raw", queue_size, callback);
     ros::Subscriber rgb_info_sub = nh.subscribe("/camera/color/camera_info", queue_size, callback_camera_info);
     /* camera */
     // ros::Subscriber rgb_sub = nh.subscribe(rgb_topic.c_str(), queue_size, callback);
     // ros::Subscriber rgb_info_sub = nh.subscribe(rgb_info_topic.c_str(), queue_size, callback_camera_info);
-
     ros::Subscriber parameter_sub = nh.subscribe("/update_params", queue_size, update_params_cb);
     ros::Rate rate(20.0);
     /*Publisher:*/
     image_transport::ImageTransport it(nh);
     result_img_pub_ = it.advertise("/result_img", 1);
     tf_list_pub_    = nh.advertise<tf2_msgs::TFMessage>("/tf_list", 1000);
-
-    aruco_info_pub_ = nh.advertise<alfons_msgs::ArucoInfo>("/aruco_list", 10);
-
     ros::spin();
     rate.sleep();
     while(1)
     {
 
     }
+
     return 0;
 }

@@ -111,9 +111,16 @@ static void get_params_cb(const tf2_msgs::TFMessage::ConstPtr& msg)
         /* maintain a llatitude of 2 m in z axis */
         pose.pose.position.x = x;
         pose.pose.position.y = y;
-        if (0.5 <= var_gps_pose.pose.position.z)
+        if (z+0.5 <= var_gps_pose.pose.position.z)
         {
-            pose.pose.position.z = var_gps_pose.pose.position.z -2;
+            if (0.5 <= pose.pose.position.z)
+            {
+                pose.pose.position.z = 0.5;
+            }
+            else
+            {
+                pose.pose.position.z = var_gps_pose.pose.position.z -2;
+            }
         }
     }
     else
@@ -197,7 +204,7 @@ int main(int argc, char **argv)
     }
     while(ros::ok())
     {
-        if (0.5 > var_gps_pose.pose.position.z && LOCK_LAND == true)
+        if (0.5 >= var_gps_pose.pose.position.z && LOCK_LAND == true)
         {
             turn_off_motors();
             ROS_INFO("AUTO LANDING MODE is request");
