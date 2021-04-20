@@ -24,6 +24,41 @@ outfile0.open("/home/nam97/data_file/gps.txt");
 ```
 outfile0 << var_gps_pose.pose.position.x << "\t" << var_gps_pose.pose.position.y << "\t" << var_gps_pose.pose.position.z << '\t' << ltm->tm_min << " : " << ltm->tm_sec << endl;
 ```
+# Add realsensen camera with generate file .sdf
+1. Dowload [realsense_ros](https://github.com/IntelRealSense/realsense-ros)
+2. Copy ```_d435.gazebo.xacro``` to ```realsense-ros/realsense2_description/urdf/d435.urdf.xacro```
+3. Edit file ```d435.urdf.xacro```
+- replace
+```
+<xacro:include filename="$(find realsense2_description)/urdf/_usb_plug.urdf.xacro" />
+<xacro:include filename="$(find realsense2_description)/urdf/_d435.gazebo.xacro" />
+```
+```
+<xacro:macro name="sensor_d435" params="parent *origin name:=camera use_nominal_extrinsics:=true add_plug:=false topics_ns:=camera publish_pointcloud:=true" >
+```
+- add gazebo plugin before
+```
+   </xacro:macro>
+</robot>
+```
+```
+<xacro:gazebo_d435 camera_name="${name}" reference_link="${name}_link" topics_ns="${topics_ns}" depth_optical_frame="${name}_depth_optical_frame" color_optical_frame="${name}_color_optical_frame" infrared1_optical_frame="${name}_left_ir_optical_frame" infrared2_optical_frame="${name}_right_ir_optical_frame" publish_pointcloud="${publish_pointcloud}"/>
+```
+file ```test_d435_camera.urdf.xacro```
+```
+<xacro:arg name="use_nominal_extrinsics" default="false"/>
+to default="true"
+```
+5. Run cmd
+```
+cd realsensen_ros
+export ROS_PACKAGE_PATH=$ROS_PACKAGE_PATH:$(pwd)
+rosrun xacro xacro realsense2_description/urdf/test_d435_camera.urdf.xacro > file_name.urdf
+sync
+gz sdf -p ./file_name.urdf > my_sdf.sdf
+sync
+```
+
 # Tool
 
 1. Generate ArUco marker.
