@@ -175,7 +175,7 @@ int main(int argc, char **argv)
 
     /*send a few setpoints before starting*/
     cout << "LOADING";
-    for(int i = 50; ros::ok() && i > 0; --i)
+    for(int i = 20; ros::ok() && i > 0; --i)
     {
 
         cout <<".";
