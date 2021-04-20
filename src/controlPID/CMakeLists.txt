@@ -1,12 +1,12 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(subscriber)
+project(controlpid)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 add_compile_options(-std=c++11)
 
 ## Find catkin macros and libraries
 find_package(catkin REQUIRED COMPONENTS
-        geometry_msgs roscpp rospy std_msgs tf2 tf2_ros  std_msgs)
+        geometry_msgs roscpp rospy std_msgs tf2 tf2_ros std_msgs)
 
 ###################################
 ## catkin specific configuration ##
@@ -29,7 +29,7 @@ include_directories(
         ${catkin_INCLUDE_DIRS}
 )
 
-add_executable(${PROJECT_NAME}_node src/subscriber.cpp)
+add_executable(${PROJECT_NAME}_node src/controlpid.cpp)
 target_link_libraries(${PROJECT_NAME}_node
         ${catkin_LIBRARIES}
         )

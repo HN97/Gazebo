@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package format="2">
-    <name>subscriber</name>
+    <name>controlpid</name>
     <version>0.1.1</version>
     <description>The subscribe package.</description>
     <author email="namvkbn1997@gmail.com">nam97</author>
