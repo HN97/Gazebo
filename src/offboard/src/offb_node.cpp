@@ -28,12 +28,19 @@
 #include <sstream>
 #include <cstring> 
 #include <string>
-
+#include <ctime>
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2/LinearMath/Vector3.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2/LinearMath/Transform.h>
 #include <tf2_msgs/TFMessage.h>
+#include <geometry_msgs/TwistStamped.h>
+
+#define LOCAL    1
+#define PID      2
+
+time_t baygio = time(0);
+tm *ltm       = localtime(&baygio);
 
 /*this provides scope for identifiers*/
 using namespace std;
@@ -42,6 +49,9 @@ using namespace Eigen;
 /*declaring variables*/
 geometry_msgs::PoseStamped pose;
 geometry_msgs::PoseStamped gps_pose;
+geometry_msgs::TwistStamped var_velocity;
+
+
 mavros_msgs::State current_state;
 /*variable*/
 
@@ -130,18 +140,45 @@ void custom_activity_callback(const std_msgs::String::ConstPtr& msg)
 
 int main(int argc, char **argv)
 {
-
+    int mode_controll;
 // cout<< "______  __   __    ___     _____    _____ " <<endl;
 // cout<< "| ___ \ \ \ / /   /   |   / ___ \  | ___ \" <<endl;
 // cout<< "| |_/ /  \ V /   / /| |   | | | |  | |_/ |" <<endl;
 // cout<< "|  __/   /   \  / /_| |   | | | |  |  __ /" <<endl;
 // cout<< "| |     / /^\ \ \___  |   | |_| |  | |_/ \" <<endl;
 // cout<< "\_|     \/   \/     |_/   \_____/  \_____/" <<endl;
-    cout << "Staring mode OFFBOARD CONTROL ..........." << endl;
+    cout << "\t-----Staring mode OFFBOARD CONTROL-----"<< endl;
+    cout << "\t======================================="<< endl;
+    cout << "\t| 1: Control follow local position    |"<< endl;
+    cout << "\t| 2: Control follow PID               |"<< endl;
+    cout << "\t======================================="<< endl;
+    cout << "ENTER Option: ";
+    cin >> mode_controll;
     /* Init position */
-    cout << "PLEASE ENTER POSITION INIT Follow Local ENU frame [x y z]: ";
-    cin  >> pose.pose.position.x >> pose.pose.position.y >> pose.pose.position.z ;
-    cout << "pose : "<< pose.pose.position.x << "  "<< pose.pose.position.y <<"  "<< pose.pose.position.z << endl;
+    if (mode_controll == 1)
+    {
+        cout << "PLEASE ENTER POSITION INIT Follow Local ENU frame [x y z]: ";
+        cin  >> pose.pose.position.x >> pose.pose.position.y >> pose.pose.position.z ;
+        cout << "pose : "<< pose.pose.position.x << "  "<< pose.pose.position.y <<"  "<< pose.pose.position.z << endl;
+    }
+    else if(mode_controll == 2)
+    {
+        cout << "PLEASE ENTER VELOCITY INIT Follow Local ENU frame [x y z]: ";
+        cin  >> var_velocity.twist.linear.x >> var_velocity.twist.linear.y >> var_velocity.twist.linear.z ;
+        cout << "Time: " << endl;
+        cout << "Velocity x : " << var_velocity.twist.linear.x << "m/s" << endl;
+        cout << "Velocity y : " << var_velocity.twist.linear.y << "m/s" << endl;
+        cout << "Velocity z : " << var_velocity.twist.linear.z << "m/s" << endl;
+    }
+    else
+    {
+
+    }
+
+    var_velocity.twist.linear.x = 1;
+    var_velocity.twist.linear.y = 1;
+    var_velocity.twist.linear.z = 2;
+
     ros::init(argc, argv, "offboard_node");
     ros::NodeHandle nh;
 
@@ -162,6 +199,7 @@ int main(int argc, char **argv)
     ros::Subscriber position_target_sub = nh.subscribe<geometry_msgs::PoseStamped>("cmd/set_pose/position1",30,set_target_position_callback);
     ros::Subscriber yaw_target_sub = nh.subscribe<std_msgs::Float32>("cmd/set_pose/orientation",10,set_target_yaw_callback);
     ros::Subscriber custom_activity_sub = nh.subscribe<std_msgs::String>("cmd/set_activity/type",10,custom_activity_callback);
+    ros::Publisher velocity_pub   = nh.advertise <geometry_msgs::TwistStamped>("/mavros/setpoint_velocity/cmd_vel", 30 );
 
     //the setpoint publishing rate MUST be faster than 2Hz
     ros::Rate rate(20.0);
@@ -236,8 +274,27 @@ int main(int argc, char **argv)
                 last_request = ros::Time::now();
             }
         }
+        if (gps_pose.pose.position.z > 5)
+        {
+            var_velocity.twist.linear.x = 0;
+            var_velocity.twist.linear.y = 0;
+            var_velocity.twist.linear.z = 0;
+        }
 
-        local_pos_pub.publish(pose);
+        switch(mode_controll)
+        {
+            case LOCAL:
+                local_pos_pub.publish(pose);
+                break;
+            case PID:
+                velocity_pub.publish(var_velocity);
+                break;
+            default:
+                {
+                    cout << "Not position" << endl;
+                    exit(0);
+                }
+        }
         ros::spinOnce();
         rate.sleep();
     }

@@ -7,8 +7,8 @@
     <arg name="image_height" default="1080" />
 <!--     <arg name="image_width" default="640" /> 
     <arg name="image_height" default="480" /> -->
-    <arg name="camera" default="/usb_cam/image_raw" />
-    <arg name="camera_info" default="/camera/camera_info" />
+    <arg name="camera" default="/camera/color/image_raw" />
+    <arg name="camera_info" default="/camera/color/camera_info" />
     <arg name="tf_prefix" default="marker_id" />
     <arg name="show_detections" default="true" />
     <arg name="marker_size" default="0.5" doc="length of the physical marker's side in meters"/>

@@ -207,6 +207,7 @@ include_directories(
 
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
+add_definitions(-DFOO -DBAR=1)
 
 # Find Gazebo
 find_package(gazebo REQUIRED)

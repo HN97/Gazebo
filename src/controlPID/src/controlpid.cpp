@@ -17,6 +17,7 @@
 #include <sensor_msgs/Imu.h>
 #include "std_msgs/String.h"
 #include "std_msgs/Float32.h"
+#include <geometry_msgs/TwistStamped.h>
 
 using namespace std;
 using namespace Eigen;
@@ -25,7 +26,8 @@ ros::Publisher custom_activity_pub;
 
 /*Variable*/
 geometry_msgs::PoseStamped pose;
-geometry_msgs::PoseStamped var_gps_pose;
+geometry_msgs::PoseStamped var_local_pose;
+geometry_msgs::TwistStamped var_velocity;
 
 time_t baygio = time(0);
 tm *ltm       = localtime(&baygio);
@@ -47,7 +49,7 @@ void turn_off_motors(void);
 /*storing gps data in pointer*/
 void gpsCallback(const geometry_msgs::PoseStamped::ConstPtr &msg)
 {
-    var_gps_pose=*msg;
+    var_local_pose=*msg;
 }
 
 
@@ -94,9 +96,9 @@ static void get_params_cb(const tf2_msgs::TFMessage::ConstPtr& msg)
     /* update the position */
     if (LOCK > 0)
     {
-        x = positionaf[0]+var_gps_pose.pose.position.x;
-        y = positionaf[1]+var_gps_pose.pose.position.y;
-        z = positionaf[2]+var_gps_pose.pose.position.z;
+        x = positionaf[0]+var_local_pose.pose.position.x;
+        y = positionaf[1]+var_local_pose.pose.position.y;
+        z = positionaf[2]+var_local_pose.pose.position.z;
         /* Convert float round 2 */
         x = (int)(x*100);
         y = (int)(y*100);
@@ -111,7 +113,7 @@ static void get_params_cb(const tf2_msgs::TFMessage::ConstPtr& msg)
         /* maintain a llatitude of 2 m in z axis */
         pose.pose.position.x = x;
         pose.pose.position.y = y;
-        if (z+0.5 <= var_gps_pose.pose.position.z)
+        if (z+0.5 <= var_local_pose.pose.position.z)
         {
             if (0.5 <= pose.pose.position.z)
             {
@@ -119,7 +121,7 @@ static void get_params_cb(const tf2_msgs::TFMessage::ConstPtr& msg)
             }
             else
             {
-                pose.pose.position.z = var_gps_pose.pose.position.z -2;
+                pose.pose.position.z = var_local_pose.pose.position.z -2;
             }
         }
     }
@@ -127,7 +129,7 @@ static void get_params_cb(const tf2_msgs::TFMessage::ConstPtr& msg)
     {
         pose.pose.position.x = x;
         pose.pose.position.y = y;
-        pose.pose.position.z = var_gps_pose.pose.position.z;
+        pose.pose.position.z = var_local_pose.pose.position.z;
         ROS_INFO("Aligning........!");
         LOCK = 0;
     }
@@ -139,14 +141,14 @@ static void get_params_cb(const tf2_msgs::TFMessage::ConstPtr& msg)
     }
     baygio = time(0);
     ltm = localtime(&baygio);
-    outfile0 << var_gps_pose.pose.position.x << "\t" << var_gps_pose.pose.position.y << "\t" << var_gps_pose.pose.position.z << '\t' << ltm->tm_min << " : " << ltm->tm_sec << endl;
+    outfile0 << var_local_pose.pose.position.x << "\t" << var_local_pose.pose.position.y << "\t" << var_local_pose.pose.position.z << '\t' << ltm->tm_min << " : " << ltm->tm_sec << endl;
     outfile1 << positionbe[0] <<'\t'<< positionbe[1] << '\t' << positionbe[2] << '\t' << ltm->tm_min << " : " << ltm->tm_sec << endl;
     outfile2 << x <<'\t'<< y << '\t' << z << '\t'<< ltm->tm_min << " : " << ltm->tm_sec << endl;
 
     cout<<"Aruco2Cam  : " << position_cam[0] <<'\t'<< position_cam[1] << '\t' << position_cam[2] << endl;
     cout<<"Aruco2Drone: " << positionbe[0] <<'\t'<< positionbe[1] << '\t' << positionbe[2] << endl;
     cout<<"Aruco2NEU  : " << x <<'\t'<< y << '\t' << z << endl;
-    cout<<"Drone      : " << var_gps_pose.pose.position.x << " : " << var_gps_pose.pose.position.y << " : " << var_gps_pose.pose.position.z << endl;
+    cout<<"Drone      : " << var_local_pose.pose.position.x << " : " << var_local_pose.pose.position.y << " : " << var_local_pose.pose.position.z << endl;
 }
 
 void local_pose_callback(const geometry_msgs::PoseStamped::ConstPtr& msg)
@@ -188,12 +190,13 @@ int main(int argc, char **argv)
     ros::init(argc, argv, "subpose_node");
     ros::NodeHandle n;
 
-    ros::Subscriber imu_sub = n.subscribe("/mavros/imu/data",10,imuCallback);
-    ros::Subscriber gps_sub = n.subscribe("/mavros/local_position/pose",100,gpsCallback);
-    ros::Subscriber pose_sub = n.subscribe("/tf_list", 1000, get_params_cb);
-    custom_activity_pub = n.advertise<std_msgs::String>("cmd/set_activity/type",10);
-    ros::Subscriber local_pos_sub = n.subscribe<geometry_msgs::PoseStamped>("mavros/setpoint_position/local", 10, local_pose_callback);
-    ros::Publisher local_pos_pub1 = n.advertise<geometry_msgs::PoseStamped>("cmd/set_pose/position1", 30);
+    ros::Subscriber imu_sub       = n.subscribe("/mavros/imu/data",10,imuCallback);
+    ros::Subscriber gps_sub       = n.subscribe("/mavros/local_position/pose",100,gpsCallback);
+    ros::Subscriber pose_sub      = n.subscribe("/tf_list", 1000, get_params_cb);
+    custom_activity_pub           = n.advertise<std_msgs::String>("cmd/set_activity/type",10);
+    ros::Subscriber local_pos_sub = n.subscribe <geometry_msgs::PoseStamped>("mavros/setpoint_position/local", 10, local_pose_callback);
+    // ros::Publisher local_pos_pub1 = n.advertise <geometry_msgs::PoseStamped>("cmd/set_pose/position1", 30);
+    ros::Publisher velocity_pub   = n.advertise <geometry_msgs::TwistStamped>("/mavros/setpoint_velocity/cmd_vel", 30 );
     ros::Rate rate(20.0);
 
     for(int i = 100; ros::ok() && i > 0; --i)
@@ -204,7 +207,7 @@ int main(int argc, char **argv)
     }
     while(ros::ok())
     {
-        if (0.5 >= var_gps_pose.pose.position.z && LOCK_LAND == true)
+        if (0.5 >= var_local_pose.pose.position.z && LOCK_LAND == true)
         {
             turn_off_motors();
             ROS_INFO("AUTO LANDING MODE is request");
@@ -213,7 +216,8 @@ int main(int argc, char **argv)
             outfile1.close();
             outfile2.close();
         }
-        local_pos_pub1.publish(pose);
+        // local_pos_pub1.publish(pose);
+        velocity_pub.publish(var_velocity);
         ros::spinOnce();
         rate.sleep();
     }

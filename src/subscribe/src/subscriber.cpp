@@ -37,6 +37,7 @@ static double var_offset_pose[3] = {0.0, 0.0, 0.0};
 static char var_active_status[20];
 static double x, y, z;
 static bool LOCK_LAND            = true;
+static bool vend                 = false;
 
 /*Declaring a 3*3 matrix*/
 Matrix3f R, cv_rotation, cam2imu_rotation;
@@ -73,8 +74,23 @@ void imuCallback(const sensor_msgs::Imu::ConstPtr &msg)
     yaw   = yaw*(180/3.14);;
 }
 
+int vbegin = 2;
+float minutes = 0;
+float seconds = 0;
+
 static void get_params_cb(const tf2_msgs::TFMessage::ConstPtr& msg)
 {
+    if (vbegin == 1)
+    {
+        baygio = time(0);
+        ltm = localtime(&baygio);
+        cout << "Start:" << ltm->tm_min << ":";
+        cout << ltm->tm_sec << endl;
+        minutes = ltm->tm_min;
+        seconds = ltm->tm_sec;
+        vbegin = 0;
+    }
+
     double xq,yq,zq,wq;
     Quaternionf quat;
     cam2imu_rotation << -0.0001 , -1 , 0 , -1 , 0 , 0 ,-0.0001 , 0 , -1;
@@ -170,11 +186,11 @@ int main(int argc, char **argv)
 {
 
     int sizeof_queue     = 10;
-    pose.pose.position.x = 2;
-    pose.pose.position.y = 3;
-    pose.pose.position.z = 7;
+    // pose.pose.position.x = 2;
+    // pose.pose.position.y = 3;
+    // pose.pose.position.z = 7;
 
-    // in cac thanh phan cua cau truc tm struct.
+    /*in cac thanh phan cua cau truc tm struct.*/
     cout << "Nam: "<< 1900 + ltm->tm_year << endl;
     cout << "Thang: "<< 1 + ltm->tm_mon<< endl;
     cout << "Ngay: "<<  ltm->tm_mday << endl;
@@ -202,18 +218,31 @@ int main(int argc, char **argv)
         ros::spinOnce();
         rate.sleep();
     }
+    vbegin = 1;
     while(ros::ok())
     {
         if (0.5 >= var_gps_pose.pose.position.z && LOCK_LAND == true)
         {
             turn_off_motors();
+            baygio = time(0);
+            ltm = localtime(&baygio);
             ROS_INFO("AUTO LANDING MODE is request");
             LOCK_LAND = false;
+            vend = true;
+            cout << "\t-----------Time AUTO LANDING-----------"<< endl;
+            cout << "\t======================================="<< endl;
+            cout << "\t Start :" << minutes <<" : "<< seconds << endl;
+            cout << "\t END   :" << ltm->tm_min <<" : "<< ltm->tm_sec << endl;
+            cout << "\t======================================="<< endl;
             outfile0.close();
             outfile1.close();
             outfile2.close();
         }
-        local_pos_pub1.publish(pose);
+        if (vend == false)
+        {
+            local_pos_pub1.publish(pose);
+        }
+
         ros::spinOnce();
         rate.sleep();
     }

@@ -341,7 +341,7 @@ int main(int argc, char **argv)
     string rgb_topic, rgb_info_topic, dictionary_name;
 
     nh.param("camera", rgb_topic, string("/camera/color/image_raw"));
-    nh.param("camera_info", rgb_info_topic, string("/kinect2/hd/camera_info"));
+    nh.param("camera_info", rgb_info_topic, string("/camera/color/camera_info"));
     nh.param("show_detections", show_detections, true);
     nh.param("tf_prefix", marker_tf_prefix, string("marker"));
     nh.param("marker_size", marker_size, 0.5f);
