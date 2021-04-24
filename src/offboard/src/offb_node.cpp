@@ -40,7 +40,7 @@
 #define PID      2
 
 time_t baygio = time(0);
-tm *ltm       = localtime(&baygio);
+tm *ltime       = localtime(&baygio);
 
 /*this provides scope for identifiers*/
 using namespace std;
@@ -48,7 +48,7 @@ using namespace Eigen;
 
 /*declaring variables*/
 geometry_msgs::PoseStamped pose;
-geometry_msgs::PoseStamped gps_pose;
+geometry_msgs::PoseStamped vlocal_pose;
 geometry_msgs::TwistStamped var_velocity;
 
 
@@ -72,9 +72,9 @@ Vector3f positionbe;
 Vector3f positionaf;
 
 /*storing gps data in pointer*/
-void gpsCallback(const geometry_msgs::PoseStamped::ConstPtr &msg)
+void mavrosPoseCallback(const geometry_msgs::PoseStamped::ConstPtr &msg)
 {
-    gps_pose=*msg;
+    vlocal_pose=*msg;
 }
 
 
@@ -187,7 +187,7 @@ int main(int argc, char **argv)
     ros::Subscriber imu_sub = nh.subscribe<sensor_msgs::Imu>
             ("/mavros/imu/data",10,imuCallback);
     ros::Subscriber gps_sub = nh.subscribe<geometry_msgs::PoseStamped>
-            ("/mavros/local_position/pose",100,gpsCallback);
+            ("/mavros/local_position/pose",100,mavrosPoseCallback);
     ros::Publisher local_pos_pub = nh.advertise<geometry_msgs::PoseStamped>
             ("mavros/setpoint_position/local", 10);
     ros::ServiceClient arming_client = nh.serviceClient<mavros_msgs::CommandBool>
@@ -274,7 +274,7 @@ int main(int argc, char **argv)
                 last_request = ros::Time::now();
             }
         }
-        if (gps_pose.pose.position.z > 5)
+        if (vlocal_pose.pose.position.z > 5)
         {
             var_velocity.twist.linear.x = 0;
             var_velocity.twist.linear.y = 0;
