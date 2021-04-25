@@ -1,0 +1,6 @@
+# exclude everything directory under
+/PX4-Autopilot
+build/*
+devel/*
+.catkin_workspace
+/src/CMakeLists.txt
