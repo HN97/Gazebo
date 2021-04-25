@@ -1,8 +1,9 @@
 # PX4-Gazebo
 
-1. Copy plugin [realsense_gazebo_plugin](https://github.com/pal-robotics/realsense_gazebo_plugin) to src folder.
-2. Copy package d435_camera to Tools/sitl_gazebo/models into foler [PX4](https://github.com/PX4/PX4-Autopilot).
-3. Add to file iris.sdf.
+1. Build plugin [realsense_gazebo_plugin](https://github.com/pal-robotics/realsense_gazebo_plugin)
+2. Copy library *librealsense_gazebo_plugin.so* from folder *devel/lib* to */opt/ros/version/lib*
+3. Copy package d435_camera to Tools/sitl_gazebo/models into foler [PX4](https://github.com/PX4/PX4-Autopilot)
+4. Add to file iris.sdf
 ```
 <include>
     <uri>model://d435_camera</uri>
@@ -13,10 +14,12 @@
     <parent>iris::base_link</parent>
 </joint>
 ```
-- pose is **x y z roll pitch yaw**  
-- realsense2_camera is name of camera in file my_sdf.sdf line 3:
-```<model name='realsense2_camera'```
-**- Folder contain file report position format ***.txt***, please create directory the same link in file subscriber.cpp.**
+- pose is *x y z roll pitch yaw*
+- realsense2_camera is name of camera in file *my_sdf.sdf* line 3:
+```
+<model name='realsense2_camera'
+```
+- Folder contain file report position format ***.txt***, please create directory the same link in file subscriber.cpp.**
 ```
 outfile0.open("/home/nam97/data_file/gps.txt");
 ```
@@ -24,7 +27,7 @@ outfile0.open("/home/nam97/data_file/gps.txt");
 ```
 outfile0 << var_gps_pose.pose.position.x << "\t" << var_gps_pose.pose.position.y << "\t" << var_gps_pose.pose.position.z << '\t' << ltm->tm_min << " : " << ltm->tm_sec << endl;
 ```
-# Add realsensen camera with generate file .sdf
+##### Add realsensen camera with generate file .sdf
 1. Dowload [realsense_ros](https://github.com/IntelRealSense/realsense-ros)
 2. Copy ```_d435.gazebo.xacro``` to ```realsense-ros/realsense2_description/urdf/d435.urdf.xacro```
 3. Edit file ```d435.urdf.xacro```
