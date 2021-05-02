@@ -1,20 +1,30 @@
+#! /usr/bin/python3
 import pandas as pd
 import matplotlib.pyplot as plt
+import numpy as np
 
-df = pd.read_csv("./gps.txt",sep= " ")
+df = pd.read_csv("./velocity.txt",sep= " ")
 
-print(df['x'][0:3])
+df.info()
 
-# plt.plot(df['x'][0:10])
-# plt.ylabel("axis X")
-# plt.xlabel("time")
+fig, (axX, axY, axZ) = plt.subplots(3, sharex=True)
+axX.set(ylabel='meter (m)')
+axX.set(xlabel='time')
+axX.set(title='Position X')
+axY.set(ylabel='meter (m)')
+axY.set(xlabel='time')
+axY.set(title='Position Y')
+axZ.set(ylabel='meter (m)')
+axZ.set(xlabel='time')
+axZ.set(title='Height')
+axX.plot(df['x'][240:])
+axY.plot(df['y'][240:])
+axZ.plot(df['z'][240:])
+axX.grid(color = 'green', linestyle = '--', linewidth = 0.5)
+axY.grid(color = 'green', linestyle = '--', linewidth = 0.5)
+axZ.grid(color = 'green', linestyle = '--', linewidth = 0.5)
+figManager = plt.get_current_fig_manager()
+figManager.resize(*figManager.window.maxsize())
+plt.show()
 
-        # plt.plot([1,2,3,4], [1,4,9,16], 'ro')
-# plt.axis([0, 6, 0, 20])
-# plt.show()
-
-# df.info()
-# print(df.columns)
-# print(df['x'][0:2])
-# for index, row in df.iterrows():
-#     print(index, row)
+# End of file

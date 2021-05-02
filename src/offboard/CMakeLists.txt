@@ -211,12 +211,13 @@ add_definitions(-DFOO -DBAR=1)
 
 # Find Gazebo
 find_package(gazebo REQUIRED)
-include_directories(${GAZEBO_INCLUDE_DIRS})
+include_directories(${GAZEBO_INCLUDE_DIRS} src)
 link_directories(${GAZEBO_LIBRARY_DIRS})
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${GAZEBO_CXX_FLAGS}")
 
-add_executable(offb_node src/offb_node.cpp)
-add_library(off_node_plugin SHARED src/offb_node.cpp)
+file(GLOB SOURCES "src/*.cpp")
+add_executable(offb_node ${SOURCES})
+add_library(off_node_plugin SHARED src/offb_node.cpp src/MiniPID.cpp)
 target_link_libraries(offb_node ${catkin_LIBRARIES} ${GAZEBO_LIBRARIES})
 
 

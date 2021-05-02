@@ -1,46 +1,39 @@
 /**
  * @file offb_node.cpp
- * @brief Offboard control example node, written with MAVROS version 0.19.x, PX4 Pro Flight
+ * @brief Offboard control example node, written with PX4 1.10.1
  * Stack and tested in Gazebo SITL
  */
 
 #include <ros/ros.h>
-// local position and velocity from FCU
 #include <geometry_msgs/PoseStamped.h>
-// supports matrix and vector support
 #include <eigen3/Eigen/Core>
-// changing arming status
 #include <mavros_msgs/CommandBool.h>
-// Set FCU operation mode
 #include <mavros_msgs/SetMode.h>
-// source of arming event
 #include <mavros_msgs/State.h>
-// including tf library
 #include <tf/tf.h>
-// supports transformations quaternions
 #include <eigen3/Eigen/Geometry>
-// imu data orientation computed by FCU
 #include <sensor_msgs/Imu.h>
-// file input  output stream
 #include <iostream>
-#include "std_msgs/String.h"
-#include "std_msgs/Float32.h"
 #include <sstream>
-#include <cstring> 
-#include <string>
+#include <fstream>
+#include <unistd.h>
 #include <ctime>
+#include <string>
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2/LinearMath/Vector3.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2/LinearMath/Transform.h>
 #include <tf2_msgs/TFMessage.h>
 #include <geometry_msgs/TwistStamped.h>
+#include <signal.h>
+#include <cstdlib>
+#include "std_msgs/String.h"
+#include "std_msgs/Float32.h"
+#include "MiniPID.h"
 
 #define LOCAL    1
 #define PID      2
-
-time_t baygio = time(0);
-tm *ltime       = localtime(&baygio);
+#define PRECISION(x)    round(x * 100) / 100
 
 /*this provides scope for identifiers*/
 using namespace std;
@@ -51,27 +44,31 @@ geometry_msgs::PoseStamped pose;
 geometry_msgs::PoseStamped vlocal_pose;
 geometry_msgs::TwistStamped var_velocity;
 
+time_t baygio = time(0);
+tm *ltime       = localtime(&baygio);
+ofstream outfile0;
 
 mavros_msgs::State current_state;
-/*variable*/
+/* variable */
 
 static char var_active_status[20];
 static int STATE_CHECK = 1;
 
-/*declaring a 3*3 matrix*/
+/* declaring a 3*3 matrix */
 Matrix3f R;
 
-/*getting the state into a pointer*/
-void state_cb(const mavros_msgs::State::ConstPtr& msg){
+/* getting the state into a pointer */
+void state_cb(const mavros_msgs::State::ConstPtr& msg)
+{
     current_state = *msg;
 }
 
-/*vectors to store position before and after*/
+/* vectors to store position before and after */
 Vector3f var_offset_pose;
 Vector3f positionbe;
 Vector3f positionaf;
 
-/*storing gps data in pointer*/
+/* storing gps data in pointer */
 void mavrosPoseCallback(const geometry_msgs::PoseStamped::ConstPtr &msg)
 {
     vlocal_pose=*msg;
@@ -88,7 +85,7 @@ void imuCallback(const sensor_msgs::Imu::ConstPtr &msg)
     z =msg->orientation.z;
     w =msg->orientation.w;
     
-    /*making a quaternion of position*/
+    /* making a quaternion of position */
     Quaternionf quat;
     quat=Eigen::Quaternionf(w,x,y,z);
   
@@ -123,7 +120,7 @@ void set_target_position_callback(const geometry_msgs::PoseStamped::ConstPtr& ms
         pose.pose.position.x= msg->pose.position.x;
         pose.pose.position.y= msg->pose.position.y;
         pose.pose.position.z= msg->pose.position.z;
-        cout << "X: " << pose.pose.position.x << "\t" << "Y: " << pose.pose.position.y << "\t" << "Z: " << pose.pose.position.z << endl;
+        // cout << "X: " << pose.pose.position.x << "\t" << "Y: " << pose.pose.position.y << "\t" << "Z: " << pose.pose.position.z << endl;
     // }
 }
 
@@ -138,46 +135,67 @@ void custom_activity_callback(const std_msgs::String::ConstPtr& msg)
     cout << var_active_status << endl;
 }
 
+// MiniPID pid_x = MiniPID(.03, .0, .0, 0.1);
+// MiniPID pid_y = MiniPID(.05, .0, .0);
+// MiniPID pid_z = MiniPID(.128, .009, 0.05);
+MiniPID pid_x = MiniPID(3.0, 0.2, 0.05, 0.15);
+MiniPID pid_y = MiniPID(3.0, 0.2, 0.05, 0.1);
+MiniPID pid_z = MiniPID(1.5, .012, 0.05, 0.1);
+
+void signal_callback_handler(int signum)
+{
+    cout << "======================================="<< endl;
+    outfile0.close();
+    cout << "\nSaved File" << endl;
+    cout << "EXIT programme " << endl;
+    exit(signum);
+}
+
 int main(int argc, char **argv)
 {
     int mode_controll;
-// cout<< "______  __   __    ___     _____    _____ " <<endl;
-// cout<< "| ___ \ \ \ / /   /   |   / ___ \  | ___ \" <<endl;
-// cout<< "| |_/ /  \ V /   / /| |   | | | |  | |_/ |" <<endl;
-// cout<< "|  __/   /   \  / /_| |   | | | |  |  __ /" <<endl;
-// cout<< "| |     / /^\ \ \___  |   | |_| |  | |_/ \" <<endl;
-// cout<< "\_|     \/   \/     |_/   \_____/  \_____/" <<endl;
-    cout << "\t-----Staring mode OFFBOARD CONTROL-----"<< endl;
-    cout << "\t======================================="<< endl;
-    cout << "\t| 1: Control follow local position    |"<< endl;
-    cout << "\t| 2: Control follow PID               |"<< endl;
-    cout << "\t======================================="<< endl;
-    cout << "ENTER Option: ";
+    double output_x, output_y, output_z;
+
+    outfile0.open("/home/nam97/Gazebo/Tool/gen_report/velocity.txt");
+    outfile0 << "x " << "y " << "z " << "m " << "s" << endl;
+
+    cout<< "______  __   __    ___     _____    _____ " << endl;
+    cout<< "| ___ \\ \\ \\ / /   /   |   / ___ \\  | ___ \\" <<endl;
+    cout<< "| |_/ /  \\ V /   / /| |   | | | |  | |_/ |" <<endl;
+    cout<< "|  __/   /   \\  / /_| |   | | | |  |  __ /" <<endl;
+    cout<< "| |     / /^\\ \\ \\___  |   | |_| |  | |_/ \\" <<endl;
+    cout<< "\\_|     \\/   \\/     |_/   \\_____/  \\_____/\n\n" <<endl;
+
+    cout << "-----Staring mode OFFBOARD CONTROL-----"<< endl;
+    cout << "======================================="<< endl;
+    cout << "| 1: Control follow local position    |"<< endl;
+    cout << "| 2: Control follow PID               |"<< endl;
+    cout << "======================================="<< endl;
+    cout << " ENTER Option: ";
+
     cin >> mode_controll;
     /* Init position */
-    if (mode_controll == 1)
+    switch(mode_controll)
     {
-        cout << "PLEASE ENTER POSITION INIT Follow Local ENU frame [x y z]: ";
-        cin  >> pose.pose.position.x >> pose.pose.position.y >> pose.pose.position.z ;
-        cout << "pose : "<< pose.pose.position.x << "  "<< pose.pose.position.y <<"  "<< pose.pose.position.z << endl;
+        case LOCAL:
+            cout << "PLEASE ENTER POSITION INIT Follow Local ENU frame [x y z]: ";
+            cin  >> pose.pose.position.x >> pose.pose.position.y >> pose.pose.position.z ;
+            cout << "pose : "<< pose.pose.position.x << "  "<< pose.pose.position.y <<"  "<< pose.pose.position.z << endl;
+            break;
+        case PID:
+            cout << "PID controller is chosen \nENTER Position Local ENU frame [x y z]: ";
+            cin  >> pose.pose.position.x >> pose.pose.position.y >> pose.pose.position.z ;
+            cout << "Time: " << endl;
+            cout << "Axis x : " << pose.pose.position.x  << "m" << endl;
+            cout << "Axis y : " << pose.pose.position.y << "m" << endl;
+            cout << "Axis z : " << pose.pose.position.z << "m" << endl;
+            break;
+        default:
+        {
+            cout << "Not position" << endl;
+            exit(0);
+        }
     }
-    else if(mode_controll == 2)
-    {
-        cout << "PLEASE ENTER VELOCITY INIT Follow Local ENU frame [x y z]: ";
-        cin  >> var_velocity.twist.linear.x >> var_velocity.twist.linear.y >> var_velocity.twist.linear.z ;
-        cout << "Time: " << endl;
-        cout << "Velocity x : " << var_velocity.twist.linear.x << "m/s" << endl;
-        cout << "Velocity y : " << var_velocity.twist.linear.y << "m/s" << endl;
-        cout << "Velocity z : " << var_velocity.twist.linear.z << "m/s" << endl;
-    }
-    else
-    {
-
-    }
-
-    var_velocity.twist.linear.x = 1;
-    var_velocity.twist.linear.y = 1;
-    var_velocity.twist.linear.z = 2;
 
     ros::init(argc, argv, "offboard_node");
     ros::NodeHandle nh;
@@ -200,36 +218,37 @@ int main(int argc, char **argv)
     ros::Subscriber yaw_target_sub = nh.subscribe<std_msgs::Float32>("cmd/set_pose/orientation",10,set_target_yaw_callback);
     ros::Subscriber custom_activity_sub = nh.subscribe<std_msgs::String>("cmd/set_activity/type",10,custom_activity_callback);
     ros::Publisher velocity_pub   = nh.advertise <geometry_msgs::TwistStamped>("/mavros/setpoint_velocity/cmd_vel", 30 );
-
-    //the setpoint publishing rate MUST be faster than 2Hz
+    // the setpoint publishing rate MUST be faster than 2Hz
     ros::Rate rate(20.0);
 
-    /*wait for FCU connection*/
+    pid_x.setOutputLimits(-0.5, 1.0);
+    pid_y.setOutputLimits(-0.5, 1.0);
+    pid_z.setOutputLimits(-1.0, 2.0);
+    pid_x.setOutputRampRate(20);
+    pid_y.setOutputRampRate(20);
+    pid_z.setOutputRampRate(20);
+    /* wait for FCU connection */
     while(ros::ok() && !current_state.connected)
     {
         ros::spinOnce();
         rate.sleep();
     }
-
-    /*send a few setpoints before starting*/
+    /* send a few setpoints before starting */
     cout << "LOADING";
-    for(int i = 20; ros::ok() && i > 0; --i)
+    for(int i = 10; ros::ok() && i > 0; --i)
     {
-
         cout <<".";
         local_pos_pub.publish(pose);
         ros::spinOnce();
         rate.sleep();
     }
     cout<<"100%"<<endl;
-
     mavros_msgs::SetMode offb_set_mode, offset_mode;
+    mavros_msgs::CommandBool arm_cmd;
     offb_set_mode.request.custom_mode = "OFFBOARD";
     offset_mode.request.custom_mode = "AUTO.LAND";
-
-    mavros_msgs::CommandBool arm_cmd;
     arm_cmd.request.value = true;
-
+    signal(SIGINT,signal_callback_handler);
     ros::Time last_request = ros::Time::now();
 
     while(ros::ok())
@@ -242,7 +261,6 @@ int main(int argc, char **argv)
                 {
                     ROS_INFO("Offboard enabled");
                 }
-
                 last_request = ros::Time::now();
             } 
             else
@@ -253,7 +271,6 @@ int main(int argc, char **argv)
                     {
                         ROS_INFO("Vehicle armed");
                     }
-
                     last_request = ros::Time::now();
                 }
             }
@@ -262,7 +279,6 @@ int main(int argc, char **argv)
         if (strcmp(var_active_status,"LAND") == 0)
         {
             last_request = ros::Time::now();
-            // ROS_INFO("Detected Marker & Landing ....!!!");
             if( current_state.mode != "AUTO.LAND" )
             {
                 offset_mode.request.custom_mode = "AUTO.LAND";
@@ -274,13 +290,29 @@ int main(int argc, char **argv)
                 last_request = ros::Time::now();
             }
         }
-        if (vlocal_pose.pose.position.z > 5)
-        {
-            var_velocity.twist.linear.x = 0;
-            var_velocity.twist.linear.y = 0;
-            var_velocity.twist.linear.z = 0;
-        }
 
+        baygio = time(0);
+        ltime = localtime(&baygio);
+        outfile0 << PRECISION(vlocal_pose.pose.position.x) << " " << PRECISION(vlocal_pose.pose.position.y) << " " << PRECISION(vlocal_pose.pose.position.z) << " " << ltime->tm_min << " " << ltime->tm_sec << endl;
+
+        output_x = pid_x.getOutput(PRECISION(vlocal_pose.pose.position.x), pose.pose.position.x);
+        output_y = pid_y.getOutput(PRECISION(vlocal_pose.pose.position.y), pose.pose.position.y);
+        output_z = pid_z.getOutput(PRECISION(vlocal_pose.pose.position.z), pose.pose.position.z);
+
+        output_x = (int)(output_x*100);
+        output_y = (int)(output_y*100);
+        output_z = (int)(output_z*100);
+        output_x = output_x/100;
+        output_y = output_y/100;
+        output_z = output_z/100;
+
+        var_velocity.twist.linear.x = output_x;
+        var_velocity.twist.linear.y = output_y;
+        var_velocity.twist.linear.z = output_z;
+        // cout << "V_X = "<< var_velocity.twist.linear.x << endl;
+        // cout << "V_Y = "<< var_velocity.twist.linear.y << endl;
+        // cout << "V_Z = "<< var_velocity.twist.linear.z << endl;
+        // cout << "===================================================" << endl;
         switch(mode_controll)
         {
             case LOCAL:
