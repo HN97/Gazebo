@@ -71,7 +71,7 @@ sync
 - Run file executed: ```out``` and enter parameter as instructions on the terminal.
 
 2. Generate report.
-- Not ready.
+- Run file ```dawchart.py``` to draw chart
 
 # Add new marker Aruco to gazebo
 
