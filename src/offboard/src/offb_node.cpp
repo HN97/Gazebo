@@ -30,6 +30,7 @@
 #include "std_msgs/String.h"
 #include "std_msgs/Float32.h"
 #include "MiniPID.h"
+#include "Kalmanfiler.h"
 
 #define LOCAL    1
 #define PID      2
@@ -116,7 +117,7 @@ void set_target_position_callback(const geometry_msgs::PoseStamped::ConstPtr& ms
             #      |/
             #    world------> +X
 */
-        ROS_INFO("Control Follow Local ENU frame");
+        // ROS_INFO("Control Follow Local ENU frame");
         pose.pose.position.x= msg->pose.position.x;
         pose.pose.position.y= msg->pose.position.y;
         pose.pose.position.z= msg->pose.position.z;

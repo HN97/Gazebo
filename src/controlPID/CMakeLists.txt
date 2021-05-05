@@ -28,8 +28,9 @@ catkin_install_python(PROGRAMS
 include_directories(
         ${catkin_INCLUDE_DIRS}
 )
-
-add_executable(${PROJECT_NAME}_node src/controlpid.cpp)
+file(GLOB SOURCES "src/*.cpp")
+add_executable(${PROJECT_NAME}_node ${SOURCES})
+add_library(${PROJECT_NAME}_node_plugin SHARED src/controlpid.cpp src/Kalmanfiler.cpp)
 target_link_libraries(${PROJECT_NAME}_node
         ${catkin_LIBRARIES}
         )

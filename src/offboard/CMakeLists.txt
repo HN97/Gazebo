@@ -217,7 +217,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${GAZEBO_CXX_FLAGS}")
 
 file(GLOB SOURCES "src/*.cpp")
 add_executable(offb_node ${SOURCES})
-add_library(off_node_plugin SHARED src/offb_node.cpp src/MiniPID.cpp)
+add_library(off_node_plugin SHARED src/offb_node.cpp src/MiniPID.cpp src/Kalmanfiler.cpp)
 target_link_libraries(offb_node ${catkin_LIBRARIES} ${GAZEBO_LIBRARIES})
 
 

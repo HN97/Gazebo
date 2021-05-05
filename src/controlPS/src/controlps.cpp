@@ -162,9 +162,9 @@ static void get_params_cb(const tf2_msgs::TFMessage::ConstPtr& msg)
         }
         baygio = time(0);
         ltime = localtime(&baygio);
-        outfile0 << vlocal_pose.pose.position.x << "\t" << vlocal_pose.pose.position.y << "\t" << vlocal_pose.pose.position.z << '\t' << ltime->tm_min << " : " << ltime->tm_sec << endl;
-        outfile1 << positionbe[0] <<'\t'<< positionbe[1] << '\t' << positionbe[2] << '\t' << ltime->tm_min << " : " << ltime->tm_sec << endl;
-        outfile2 << x <<'\t'<< y << '\t' << z << '\t'<< ltime->tm_min << " : " << ltime->tm_sec << endl;
+        outfile0 << vlocal_pose.pose.position.x << " " << vlocal_pose.pose.position.y << " " << vlocal_pose.pose.position.z << ' ' << ltime->tm_min << " " << ltime->tm_sec << endl;
+        outfile1 << positionbe[0] <<' '<< positionbe[1] << ' ' << positionbe[2] << ' ' << ltime->tm_min << " " << ltime->tm_sec << endl;
+        outfile2 << x <<' '<< y << ' ' << z << ' '<< ltime->tm_min << " " << ltime->tm_sec << endl;
 
         cout<<"Aruco2Cam  : " << position_cam[0] <<'\t'<< position_cam[1] << '\t' << position_cam[2] << endl;
         cout<<"Aruco2Drone: " << positionbe[0] <<'\t'<< positionbe[1] << '\t' << positionbe[2] << endl;
@@ -205,9 +205,12 @@ int main(int argc, char **argv)
     cout << "Thoi gian: "<< ltime->tm_hour << ":";
     cout << ltime->tm_min << ":";
     cout << ltime->tm_sec << endl;
-    outfile0.open("/home/nam97/data_file/gps.txt");
-    outfile1.open("/home/nam97/data_file/Aruco2Drone.txt");
-    outfile2.open("/home/nam97/data_file/Aruco2NEU.txt");
+    outfile0.open("/home/nam97/Gazebo/Tool/gen_report/gps.txt");
+    outfile1.open("/home/nam97/Gazebo/Tool/gen_report/Aruco2Drone.txt");
+    outfile2.open("/home/nam97/Gazebo/Tool/gen_report/Aruco2NEU.txt");
+    outfile0 << "x " << "y " << "z " << "m " << "s" << endl;
+    outfile1 << "x " << "y " << "z " << "m " << "s" << endl;
+    outfile2 << "x " << "y " << "z " << "m " << "s" << endl;
 
     ros::init(argc, argv, "subpose_node");
     ros::NodeHandle n;

@@ -53,7 +53,7 @@ ros::Publisher tf_list_pub_;
 #define ROUND3(x)       std::round(x * 1000) / 1000
 #define IDLOW              23
 #define IDLARGE            25
-#define SWITCH_ALTITUDE    5
+#define SWITCH_ALTITUDE    4
 
 /* Define global variables */
 bool camera_model_computed = false;
