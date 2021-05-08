@@ -30,7 +30,6 @@
 #include "std_msgs/String.h"
 #include "std_msgs/Float32.h"
 #include "MiniPID.h"
-#include "Kalmanfiler.h"
 
 #define LOCAL    1
 #define PID      2
@@ -139,9 +138,6 @@ void custom_activity_callback(const std_msgs::String::ConstPtr& msg)
 // MiniPID pid_x = MiniPID(.03, .0, .0, 0.1);
 // MiniPID pid_y = MiniPID(.05, .0, .0);
 // MiniPID pid_z = MiniPID(.128, .009, 0.05);
-MiniPID pid_x = MiniPID(3.0, 0.2, 0.05, 0.15);
-MiniPID pid_y = MiniPID(3.0, 0.2, 0.05, 0.1);
-MiniPID pid_z = MiniPID(1.5, .012, 0.05, 0.1);
 
 void signal_callback_handler(int signum)
 {
@@ -166,7 +162,6 @@ int main(int argc, char **argv)
     cout<< "|  __/   /   \\  / /_| |   | | | |  |  __ /" <<endl;
     cout<< "| |     / /^\\ \\ \\___  |   | |_| |  | |_/ \\" <<endl;
     cout<< "\\_|     \\/   \\/     |_/   \\_____/  \\_____/\n\n" <<endl;
-
     cout << "-----Staring mode OFFBOARD CONTROL-----"<< endl;
     cout << "======================================="<< endl;
     cout << "| 1: Control follow local position    |"<< endl;
@@ -181,7 +176,9 @@ int main(int argc, char **argv)
         case LOCAL:
             cout << "PLEASE ENTER POSITION INIT Follow Local ENU frame [x y z]: ";
             cin  >> pose.pose.position.x >> pose.pose.position.y >> pose.pose.position.z ;
-            cout << "pose : "<< pose.pose.position.x << "  "<< pose.pose.position.y <<"  "<< pose.pose.position.z << endl;
+            cout << "Axis x : " << pose.pose.position.x  << "m" << endl;
+            cout << "Axis y : " << pose.pose.position.y << "m" << endl;
+            cout << "Axis z : " << pose.pose.position.z << "m" << endl;
             break;
         case PID:
             cout << "PID controller is chosen \nENTER Position Local ENU frame [x y z]: ";
@@ -221,13 +218,18 @@ int main(int argc, char **argv)
     ros::Publisher velocity_pub   = nh.advertise <geometry_msgs::TwistStamped>("/mavros/setpoint_velocity/cmd_vel", 30 );
     // the setpoint publishing rate MUST be faster than 2Hz
     ros::Rate rate(20.0);
-
-    pid_x.setOutputLimits(-0.5, 1.0);
-    pid_y.setOutputLimits(-0.5, 1.0);
-    pid_z.setOutputLimits(-1.0, 2.0);
-    pid_x.setOutputRampRate(20);
-    pid_y.setOutputRampRate(20);
-    pid_z.setOutputRampRate(20);
+    if(mode_controll == PID)
+    {
+        MiniPID pid_x = MiniPID(3.0, 0.2, 0.05, 0.15);
+        MiniPID pid_y = MiniPID(3.0, 0.2, 0.05, 0.1);
+        MiniPID pid_z = MiniPID(1.5, .012, 0.05, 0.1);
+        pid_x.setOutputLimits(-0.5, 1.0);
+        pid_y.setOutputLimits(-0.5, 1.0);
+        pid_z.setOutputLimits(-1.0, 2.0);
+        pid_x.setOutputRampRate(20);
+        pid_y.setOutputRampRate(20);
+        pid_z.setOutputRampRate(20);
+    }
     /* wait for FCU connection */
     while(ros::ok() && !current_state.connected)
     {
@@ -254,6 +256,7 @@ int main(int argc, char **argv)
 
     while(ros::ok())
     {
+#ifndef HITL
         if (STATE_CHECK == 1)
         {
             if( current_state.mode != "OFFBOARD" && (ros::Time::now() - last_request > ros::Duration(5.0)))
@@ -276,7 +279,7 @@ int main(int argc, char **argv)
                 }
             }
         }
-
+#endif
         if (strcmp(var_active_status,"LAND") == 0)
         {
             last_request = ros::Time::now();
@@ -295,21 +298,23 @@ int main(int argc, char **argv)
         baygio = time(0);
         ltime = localtime(&baygio);
         outfile0 << PRECISION(vlocal_pose.pose.position.x) << " " << PRECISION(vlocal_pose.pose.position.y) << " " << PRECISION(vlocal_pose.pose.position.z) << " " << ltime->tm_min << " " << ltime->tm_sec << endl;
+        if(mode_controll == PID)
+        {
+            output_x = pid_x.getOutput(PRECISION(vlocal_pose.pose.position.x), pose.pose.position.x);
+            output_y = pid_y.getOutput(PRECISION(vlocal_pose.pose.position.y), pose.pose.position.y);
+            output_z = pid_z.getOutput(PRECISION(vlocal_pose.pose.position.z), pose.pose.position.z);
 
-        output_x = pid_x.getOutput(PRECISION(vlocal_pose.pose.position.x), pose.pose.position.x);
-        output_y = pid_y.getOutput(PRECISION(vlocal_pose.pose.position.y), pose.pose.position.y);
-        output_z = pid_z.getOutput(PRECISION(vlocal_pose.pose.position.z), pose.pose.position.z);
+            output_x = (int)(output_x*100);
+            output_y = (int)(output_y*100);
+            output_z = (int)(output_z*100);
+            output_x = output_x/100;
+            output_y = output_y/100;
+            output_z = output_z/100;
 
-        output_x = (int)(output_x*100);
-        output_y = (int)(output_y*100);
-        output_z = (int)(output_z*100);
-        output_x = output_x/100;
-        output_y = output_y/100;
-        output_z = output_z/100;
-
-        var_velocity.twist.linear.x = output_x;
-        var_velocity.twist.linear.y = output_y;
-        var_velocity.twist.linear.z = output_z;
+            var_velocity.twist.linear.x = output_x;
+            var_velocity.twist.linear.y = output_y;
+            var_velocity.twist.linear.z = output_z;
+        }
         // cout << "V_X = "<< var_velocity.twist.linear.x << endl;
         // cout << "V_Y = "<< var_velocity.twist.linear.y << endl;
         // cout << "V_Z = "<< var_velocity.twist.linear.z << endl;

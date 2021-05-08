@@ -3,8 +3,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 
-# df = pd.read_csv("./velocity.txt",sep= " ")
-df = pd.read_csv("./Aruco2NEU.txt",sep= " ")
+df = pd.read_csv("./velocity.txt",sep= " ")
+# df = pd.read_csv("./Aruco2NEU.txt",sep= " ")
 df.info()
 
 fig, (axX, axY, axZ) = plt.subplots(3, sharex=True)

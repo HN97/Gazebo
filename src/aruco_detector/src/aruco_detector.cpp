@@ -130,14 +130,16 @@ tf2::Quaternion cv_vector3d_to_tf_quaternion(const Vec3d &rotation_vector) {
     return q;
 }
 
-tf2::Transform create_transform(const Vec3d &tvec, const Vec3d &rotation_vector) {
+tf2::Transform create_transform(const Vec3d &tvec, const Vec3d &rotation_vector)
+{
     tf2::Transform transform;
     transform.setOrigin(cv_vector3d_to_tf_vector3(tvec));
     transform.setRotation(cv_vector3d_to_tf_quaternion(rotation_vector));
     return transform;
 }
 
-void callback_camera_info(const CameraInfoConstPtr &msg) {
+void callback_camera_info(const CameraInfoConstPtr &msg)
+{
     if (camera_model_computed) {
         return;
     }

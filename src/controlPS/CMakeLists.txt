@@ -26,10 +26,10 @@ catkin_install_python(PROGRAMS
 ###########
 
 include_directories(
-        ${catkin_INCLUDE_DIRS}
+        ${catkin_INCLUDE_DIRS} ../../kalman_filter
 )
-
-add_executable(${PROJECT_NAME}_node src/controlps.cpp)
+file(GLOB SOURCES src/*.cpp ../../kalman_filter/*.cpp)
+add_executable(${PROJECT_NAME}_node ${SOURCES} )
 target_link_libraries(${PROJECT_NAME}_node
         ${catkin_LIBRARIES}
         )

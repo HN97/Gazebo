@@ -42,6 +42,7 @@
         <param name="num_detected" type="double" value="$(arg num_detected)"/>
         <param name="min_prec_value" type="double" value="$(arg min_prec_value)"/>
     </node>
+
 <!-- Enable RVIZ -->
    <group if="$(arg use_rviz)" >
         <!-- <node pkg="rviz" type="rviz" name="markers_extrinsic" args="-d $(find aruco_detector)/config/aruco_opencv.rviz"/> -->
