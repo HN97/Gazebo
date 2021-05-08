@@ -207,17 +207,18 @@ include_directories(
 
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
+# define HILT with mode simulation hardware
 add_definitions(-DFOO -DBAR=1)
 
 # Find Gazebo
 find_package(gazebo REQUIRED)
-include_directories(${GAZEBO_INCLUDE_DIRS} src)
+include_directories(${GAZEBO_INCLUDE_DIRS} src ../../pid)
 link_directories(${GAZEBO_LIBRARY_DIRS})
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${GAZEBO_CXX_FLAGS}")
 
-file(GLOB SOURCES "src/*.cpp")
+file(GLOB SOURCES "src/*.cpp" ../../pid/*.cpp)
 add_executable(offb_node ${SOURCES})
-add_library(off_node_plugin SHARED src/offb_node.cpp src/MiniPID.cpp src/Kalmanfiler.cpp)
+add_library(off_node_plugin SHARED src/offb_node.cpp ../../pid/MiniPID.cpp )
 target_link_libraries(offb_node ${catkin_LIBRARIES} ${GAZEBO_LIBRARIES})
 
 

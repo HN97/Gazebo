@@ -7,22 +7,15 @@
 
 #include <csignal>
 #include <iostream>
-#include <map> // used for hashmap to give certainty
-#include <vector> // used in hashmap
-#include <numeric> // used for summing a vector
-
-// ROS
+#include <map>      /* used for hashmap to give certainty */
+#include <vector>   /* used in hashmap */
+#include <numeric>  /* used for summing a vector */
 #include "ros/ros.h"
-
-// ROS sensor messages
 #include "sensor_msgs/Image.h"
 #include "sensor_msgs/CameraInfo.h"
 #include "std_msgs/Empty.h"
 #include "std_msgs/Int16.h"
-
-// ROS image geometry
 #include <image_geometry/pinhole_camera_model.h>
-
 /* ROS transform */
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2/LinearMath/Vector3.h>
@@ -37,24 +30,39 @@
 #include <opencv2/highgui.hpp>
 #include <opencv2/aruco.hpp>
 #include <opencv2/imgproc.hpp>
+/******************************************************************************* 
 
-using namespace std;
-using namespace sensor_msgs;
-using namespace cv;
+ *                               Definitions 
 
-/* Publisher */
-image_transport::Publisher result_img_pub_;
-image_geometry::PinholeCameraModel camera_model;
-ros::Publisher tf_list_pub_;
-
-
+ ******************************************************************************/ 
 #define SSTR(x)         static_cast<std::ostringstream&>(std::ostringstream() << std::dec << x).str()
 #define ROUND2(x)       std::round(x * 100) / 100
 #define ROUND3(x)       std::round(x * 1000) / 1000
 #define IDLOW              23
 #define IDLARGE            25
 #define SWITCH_ALTITUDE    4
+/******************************************************************************* 
 
+ *                                Namespace
+
+ ******************************************************************************/ 
+using namespace std;
+using namespace sensor_msgs;
+using namespace cv;
+/******************************************************************************* 
+
+ *                                  Topic
+
+ ******************************************************************************/ 
+/* Publisher */
+image_transport::Publisher result_img_pub_;
+image_geometry::PinholeCameraModel camera_model;
+ros::Publisher tf_list_pub_;
+/******************************************************************************* 
+
+ *                                 Variables 
+
+ ******************************************************************************/
 /* Define global variables */
 bool camera_model_computed = false;
 bool show_detections;
@@ -70,7 +78,6 @@ Mat distortion_coefficients;
 Matx33d intrinsic_matrix;
 Ptr<aruco::DetectorParameters> detector_params;
 Ptr<cv::aruco::Dictionary> dictionary;
-
 /**/
 std::ostringstream vector_to_marker;
 
@@ -81,7 +88,11 @@ int min_prec_value = 80; // min precentage value to be a detected marker.
 int switch_ID      = 25;
 map<int,  std::vector<int>  > ids_hashmap;   // key: ids, value: number within last 100 imgs
 
+/******************************************************************************* 
 
+ *                                  Code 
+
+ ******************************************************************************/ 
 void int_handler(int x) {
     /* disconnect and exit gracefully */
     if(show_detections)
@@ -93,7 +104,8 @@ void int_handler(int x) {
     exit(0);
 }
 
-tf2::Vector3 cv_vector3d_to_tf_vector3(const Vec3d &vec) {
+tf2::Vector3 cv_vector3d_to_tf_vector3(const Vec3d &vec)
+{
     return {vec[0], vec[1], vec[2]};
 }
 
@@ -107,7 +119,8 @@ double getPrec(std::vector<int> ids, int i)
     return (double) num_detections/num_detected *100;
 }
 
-tf2::Quaternion cv_vector3d_to_tf_quaternion(const Vec3d &rotation_vector) {
+tf2::Quaternion cv_vector3d_to_tf_quaternion(const Vec3d &rotation_vector)
+{
     Mat rotation_matrix;
 
     auto ax    = rotation_vector[0], ay = rotation_vector[1], az = rotation_vector[2];
@@ -130,14 +143,16 @@ tf2::Quaternion cv_vector3d_to_tf_quaternion(const Vec3d &rotation_vector) {
     return q;
 }
 
-tf2::Transform create_transform(const Vec3d &tvec, const Vec3d &rotation_vector) {
+tf2::Transform create_transform(const Vec3d &tvec, const Vec3d &rotation_vector)
+{
     tf2::Transform transform;
     transform.setOrigin(cv_vector3d_to_tf_vector3(tvec));
     transform.setRotation(cv_vector3d_to_tf_quaternion(rotation_vector));
     return transform;
 }
 
-void callback_camera_info(const CameraInfoConstPtr &msg) {
+void callback_camera_info(const CameraInfoConstPtr &msg)
+{
     if (camera_model_computed) {
         return;
     }

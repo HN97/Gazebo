@@ -1,4 +1,5 @@
 #include "ros/ros.h"
+#include <math.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2/LinearMath/Vector3.h>
 #include <tf2/LinearMath/Quaternion.h>
@@ -17,34 +18,72 @@
 #include <sensor_msgs/Imu.h>
 #include "std_msgs/String.h"
 #include "std_msgs/Float32.h"
+#include "Kalmanfiler.h"
 
+/******************************************************************************* 
+
+ *                               Definitions 
+
+ ******************************************************************************/ 
+#define PRECISION(x)    round(x * 100) / 100
+#define DISTANCE        0.3
+#define NSTEP           20
+/******************************************************************************* 
+
+ *                                Namespace
+
+ ******************************************************************************/ 
 using namespace std;
 using namespace Eigen;
+/******************************************************************************* 
 
+ *                                  Topic
+
+ ******************************************************************************/ 
 ros::Publisher custom_activity_pub;
 
-/*Variable*/
-geometry_msgs::PoseStamped pose;
-geometry_msgs::PoseStamped vlocal_pose;
+/******************************************************************************* 
 
-time_t baygio = time(0);
-tm *ltime       = localtime(&baygio);
-ofstream outfile0, outfile1, outfile2;
+ *                                 Variables 
 
-static int LOCK                  = 10;
+ ******************************************************************************/
 static int number_check          = 0;
-static double var_offset_pose[3] = {0.0, 0.0, 0.0};
-static char var_active_status[20];
-static double x, y, z;
 static bool LOCK_LAND            = false;
 static bool vLand                = false;
 static bool vend                 = false;
-
-/*Declaring a 3*3 matrix*/
+static int LOCK                  = 10;
+time_t baygio                    = time(0);
+tm *ltime                        = localtime(&baygio);
+static double var_offset_pose[3] = {0.0, 0.0, 0.0};
+static char var_active_status[20];
+static double x, y, z;
+ofstream outfile0, outfile1, outfile2;
 Matrix3f R, cv_rotation, cam2imu_rotation;
 Vector3f positionbe, position_cam, positionaf, offset_marker;
+geometry_msgs::PoseStamped pose;
+geometry_msgs::PoseStamped vlocal_pose;
+/******************************************************************************* 
 
-void turn_off_motors(void);
+ *                                  Object
+
+ ******************************************************************************/
+KalmanPID kalman_x = KalmanPID(0, 5, 1.5);
+KalmanPID kalman_y = KalmanPID(0, 5, 1.5);
+KalmanPID kalman_z = KalmanPID(0, 5, 1.5);
+/******************************************************************************* 
+
+ *                                  Code 
+
+ ******************************************************************************/ 
+void turn_off_motors(void)
+{
+    std_msgs::String msg;
+    std::stringstream ss;
+
+    ss << "LAND";
+    msg.data = ss.str();
+    custom_activity_pub.publish(msg);
+}
 
 /*storing gps data in pointer*/
 void mavrosPoseCallback(const geometry_msgs::PoseStamped::ConstPtr &msg)
@@ -75,12 +114,13 @@ void imuCallback(const sensor_msgs::Imu::ConstPtr &msg)
     yaw   = yaw*(180/3.14);;
 }
 
-int vbegin = 2;
+int vbegin    = 2;
 float minutes = 0;
 float seconds = 0;
 
 static void get_params_cb(const tf2_msgs::TFMessage::ConstPtr& msg)
 {
+    float radius;
     if (LOCK_LAND == false)
     {
         if (vbegin == 1)
@@ -123,9 +163,13 @@ static void get_params_cb(const tf2_msgs::TFMessage::ConstPtr& msg)
             x = x/100;
             y = y/100;
             z = z/100;
+            // x = kalman_x.getValueKF(x);
+            // y = kalman_y.getValueKF(y);
+            
         }
+        radius = (float)sqrt(pow(positionaf[0],2) + pow(positionaf[1],2));
 
-        if (abs(positionaf[0]) < 0.3 && abs(positionaf[1]) < 0.3)
+        if (radius <= DISTANCE)
         {
             /* maintain a llatitude of 2 m in z axis */
             pose.pose.position.x = x;
@@ -138,7 +182,8 @@ static void get_params_cb(const tf2_msgs::TFMessage::ConstPtr& msg)
                 }
                 else
                 {
-                    pose.pose.position.z = vlocal_pose.pose.position.z -2;
+                    pose.pose.position.z = vlocal_pose.pose.position.z -4;
+                    // pose.pose.position.z = abs(z);
                 }
             }
             else
@@ -155,7 +200,7 @@ static void get_params_cb(const tf2_msgs::TFMessage::ConstPtr& msg)
             LOCK = 0;
         }
         number_check ++;
-        if(number_check == 70)
+        if(number_check == NSTEP)
         {
             LOCK = 1;
             number_check = 0;
@@ -166,10 +211,11 @@ static void get_params_cb(const tf2_msgs::TFMessage::ConstPtr& msg)
         outfile1 << positionbe[0] <<' '<< positionbe[1] << ' ' << positionbe[2] << ' ' << ltime->tm_min << " " << ltime->tm_sec << endl;
         outfile2 << x <<' '<< y << ' ' << z << ' '<< ltime->tm_min << " " << ltime->tm_sec << endl;
 
-        cout<<"Aruco2Cam  : " << position_cam[0] <<'\t'<< position_cam[1] << '\t' << position_cam[2] << endl;
-        cout<<"Aruco2Drone: " << positionbe[0] <<'\t'<< positionbe[1] << '\t' << positionbe[2] << endl;
-        cout<<"Aruco2NEU  : " << x <<'\t'<< y << '\t' << z << endl;
-        cout<<"Drone      : " << vlocal_pose.pose.position.x << " : " << vlocal_pose.pose.position.y << " : " << vlocal_pose.pose.position.z << endl;
+        cout<<"Aruco2Cam  : " << PRECISION(position_cam[0]) <<'\t'<< PRECISION(position_cam[1]) << '\t' << PRECISION(position_cam[2]) << endl;
+        cout<<"Aruco2Drone: " << PRECISION(positionbe[0]) <<'\t'<< PRECISION(positionbe[1]) << '\t' << PRECISION(positionbe[2]) << endl;
+        cout<<"Aruco2NEU  : " << PRECISION(x) <<'\t'<< PRECISION(y) << '\t' << PRECISION(z) << endl;
+        cout<<"Drone      : " << PRECISION(vlocal_pose.pose.position.x) << "\t" << PRECISION(vlocal_pose.pose.position.y) << "\t" << PRECISION(vlocal_pose.pose.position.z) << endl;
+        cout << "===================================================" << endl;
     }
 }
 
@@ -180,23 +226,13 @@ void local_pose_callback(const geometry_msgs::PoseStamped::ConstPtr& msg)
     pose.pose.position.z= msg->pose.position.z;
 }
 
-void turn_off_motors(void)
-{
-    std_msgs::String msg;
-    std::stringstream ss;
-
-    ss << "LAND";
-    msg.data = ss.str();
-    custom_activity_pub.publish(msg);
-}
-
 int main(int argc, char **argv)
 {
 
     int sizeof_queue     = 10;
-    // pose.pose.position.x = 2;
-    // pose.pose.position.y = 3;
-    // pose.pose.position.z = 7;
+    kalman_x.setMeasurement(0.05);
+    kalman_y.setMeasurement(0.05);
+
 
     /*in cac thanh phan cua cau truc tm struct.*/
     cout << "Nam: "<< 1900 + ltime->tm_year << endl;
@@ -247,17 +283,18 @@ int main(int argc, char **argv)
             ltime     = localtime(&baygio);
             turn_off_motors();
             ROS_INFO("AUTO LANDING MODE is request");
-            cout << "\n\t========================================"<< endl;
-            cout << "\t|-----------Time AUTO LANDING-----------"<< endl;
-            cout << "\t========================================"<< endl;
-            cout << "\t| Start :" << minutes <<" : "<< seconds << endl;
-            cout << "\t| END   :" << ltime->tm_min <<" : "<< ltime->tm_sec << endl;
-            cout << "\t| Total :" << ltime->tm_min - minutes <<" minute "<< ltime->tm_sec - seconds << " Second" << endl;
-            cout << "\t========================================"<< endl;
+            cout << "\n========================================"<< endl;
+            cout << "|-----------Time AUTO LANDING-----------"<< endl;
+            cout << "========================================"<< endl;
+            cout << "| Start :" << minutes <<" : "<< seconds << endl;
+            cout << "| END   :" << ltime->tm_min <<" : "<< ltime->tm_sec << endl;
+            cout << "| Total :" << ltime->tm_min - minutes <<" minute "<< ltime->tm_sec - seconds << " Second" << endl;
+            cout << "========================================"<< endl;
             cout<<"Drone : x = " << vlocal_pose.pose.position.x << " y = " << vlocal_pose.pose.position.y << " z = " << vlocal_pose.pose.position.z << endl;
             outfile0.close();
             outfile1.close();
             outfile2.close();
+            exit(0);
         }
         if (vend == false)
         {
