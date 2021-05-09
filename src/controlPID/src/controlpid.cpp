@@ -18,48 +18,88 @@
 #include "std_msgs/String.h"
 #include "std_msgs/Float32.h"
 #include "Kalmanfiler.h"
+/******************************************************************************* 
 
+<<<<<<< HEAD
+=======
+ *                               Definitions 
+
+ ******************************************************************************/ 
 #define PRECISION(x)    round(x * 100) / 100
 #define DISTANCE        0.3
 
+/******************************************************************************* 
+
+ *                                Namespace
+
+ ******************************************************************************/ 
+>>>>>>> 256578a5c6cb6c23da57ca7a46233d07fe52989a
 using namespace std;
 using namespace Eigen;
 
-ros::Publisher custom_activity_pub;
+/******************************************************************************* 
 
-/*Variable*/
-geometry_msgs::PoseStamped pose;
-geometry_msgs::PoseStamped vlocal_pose;
+<<<<<<< HEAD
+=======
+ *                                  Object
+>>>>>>> 256578a5c6cb6c23da57ca7a46233d07fe52989a
 
-time_t baygio   = time(0);
-tm *ltime       = localtime(&baygio);
-ofstream outfile0, outfile1, outfile2;
-
+ ******************************************************************************/
 KalmanPID kalman_x = KalmanPID(0, 5, 1.5);
 KalmanPID kalman_y = KalmanPID(0, 5, 1.5);
 KalmanPID kalman_z = KalmanPID(0, 5, 1.5);
 
-static int LOCK                  = 10;
+/******************************************************************************* 
+
+ *                                 Variables 
+
+ ******************************************************************************/
+int vbegin                       = 2;
+float minutes                    = 0;
+float seconds                    = 0; 
 static int number_check          = 0;
-static double var_offset_pose[3] = {0.0, 0.0, 0.0};
-static char var_active_status[20];
-static double x, y, z;
 static bool LOCK_LAND            = false;
 static bool vLand                = false;
 static bool vend                 = false;
-
-/*Declaring a 3*3 matrix*/
+static int LOCK                  = 10;
+time_t baygio                    = time(0);
+tm *ltime                        = localtime(&baygio);
+static double var_offset_pose[3] = {0.0, 0.0, 0.0};
+static char var_active_status[20];
+static double x, y, z;
+ofstream outfile0, outfile1, outfile2;
 Matrix3f R, cv_rotation, cam2imu_rotation;
 Vector3f positionbe, position_cam, positionaf, offset_marker;
+geometry_msgs::PoseStamped pose;
+geometry_msgs::PoseStamped vlocal_pose;
 
-void turn_off_motors(void);
+/******************************************************************************* 
 
-/*storing gps data in pointer*/
+ *                                  Topic
+
+ ******************************************************************************/ 
+ros::Publisher custom_activity_pub;
+
+/******************************************************************************* 
+
+ *                                  Code 
+
+ ******************************************************************************/ 
+void turn_off_motors(void)
+{
+    std_msgs::String msg;
+    std::stringstream ss;
+
+    ss << "LAND";
+    msg.data = ss.str();
+    custom_activity_pub.publish(msg);
+}
+
+/* storing gps data in pointer */
 void mavrosPoseCallback(const geometry_msgs::PoseStamped::ConstPtr &msg)
 {
     vlocal_pose=*msg;
 }
-
 
 void imuCallback(const sensor_msgs::Imu::ConstPtr &msg)
 {
@@ -70,9 +110,9 @@ void imuCallback(const sensor_msgs::Imu::ConstPtr &msg)
     y = msg->orientation.y;
     z = msg->orientation.z;
     w = msg->orientation.w;
-    /*making a quaternion of position*/
+    /* making a quaternion of position */
     quat = Eigen::Quaternionf(w,x,y,z);
-    /*making rotation matrix from quaternion*/
+    /* making rotation matrix from quaternion */
     R = quat.toRotationMatrix();
     tf2::Quaternion q;
     q.setValue(x, y, z, w);
@@ -82,10 +122,6 @@ void imuCallback(const sensor_msgs::Imu::ConstPtr &msg)
     pitch = pitch*(180/3.14);
     yaw   = yaw*(180/3.14);;
 }
-
-int vbegin = 2;
-float minutes = 0;
-float seconds = 0;
 
 static void get_params_cb(const tf2_msgs::TFMessage::ConstPtr& msg)
 {
@@ -191,17 +227,6 @@ void local_pose_callback(const geometry_msgs::PoseStamped::ConstPtr& msg)
     pose.pose.position.x= msg->pose.position.x;
     pose.pose.position.y= msg->pose.position.y;
     pose.pose.position.z= msg->pose.position.z;
-}
-
-// velocity_callback
-void turn_off_motors(void)
-{
-    std_msgs::String msg;
-    std::stringstream ss;
-
-    ss << "LAND";
-    msg.data = ss.str();
-    custom_activity_pub.publish(msg);
 }
 
 int main(int argc, char **argv)

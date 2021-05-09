@@ -30,50 +30,60 @@
 #include "std_msgs/String.h"
 #include "std_msgs/Float32.h"
 #include "MiniPID.h"
+<<<<<<< HEAD
+=======
+/******************************************************************************* 
+>>>>>>> 256578a5c6cb6c23da57ca7a46233d07fe52989a
 
+ *                               Definitions 
+
+ ******************************************************************************/ 
 #define LOCAL    1
 #define PID      2
 #define PRECISION(x)    round(x * 100) / 100
 
-/*this provides scope for identifiers*/
+/******************************************************************************* 
+
+ *                                Namespace
+
+ ******************************************************************************/ 
 using namespace std;
 using namespace Eigen;
 
-/*declaring variables*/
+/******************************************************************************* 
+
+ *                                 Variables 
+
+ ******************************************************************************/
+time_t baygio          = time(0);
+tm *ltime              = localtime(&baygio);
+static int STATE_CHECK = 1;
+ofstream outfile0;
+static char var_active_status[20];
+Matrix3f R;     /* declaring a 3*3 matrix */
+Vector3f var_offset_pose;     /* vectors to store position before and after */
+Vector3f positionbe;
+Vector3f positionaf;
+mavros_msgs::State current_state;
 geometry_msgs::PoseStamped pose;
 geometry_msgs::PoseStamped vlocal_pose;
 geometry_msgs::TwistStamped var_velocity;
+/******************************************************************************* 
 
-time_t baygio = time(0);
-tm *ltime       = localtime(&baygio);
-ofstream outfile0;
+ *                                  Code 
 
-mavros_msgs::State current_state;
-/* variable */
-
-static char var_active_status[20];
-static int STATE_CHECK = 1;
-
-/* declaring a 3*3 matrix */
-Matrix3f R;
-
+ ******************************************************************************/ 
 /* getting the state into a pointer */
 void state_cb(const mavros_msgs::State::ConstPtr& msg)
 {
     current_state = *msg;
 }
 
-/* vectors to store position before and after */
-Vector3f var_offset_pose;
-Vector3f positionbe;
-Vector3f positionaf;
-
 /* storing gps data in pointer */
 void mavrosPoseCallback(const geometry_msgs::PoseStamped::ConstPtr &msg)
 {
     vlocal_pose=*msg;
 }
-
 
 void imuCallback(const sensor_msgs::Imu::ConstPtr &msg)
 {
@@ -93,7 +103,6 @@ void imuCallback(const sensor_msgs::Imu::ConstPtr &msg)
     R=quat.toRotationMatrix();
     // cout << "R=" << endl << R << endl;
 }
-
 
 void posecallback(const geometry_msgs::PoseStamped::ConstPtr& msg)
 {
@@ -216,7 +225,10 @@ int main(int argc, char **argv)
     ros::Subscriber yaw_target_sub = nh.subscribe<std_msgs::Float32>("cmd/set_pose/orientation",10,set_target_yaw_callback);
     ros::Subscriber custom_activity_sub = nh.subscribe<std_msgs::String>("cmd/set_activity/type",10,custom_activity_callback);
     ros::Publisher velocity_pub   = nh.advertise <geometry_msgs::TwistStamped>("/mavros/setpoint_velocity/cmd_vel", 30 );
-    // the setpoint publishing rate MUST be faster than 2Hz
+<<<<<<< HEAD
+=======
+
+>>>>>>> 256578a5c6cb6c23da57ca7a46233d07fe52989a
     ros::Rate rate(20.0);
     if(mode_controll == PID)
     {
@@ -279,7 +291,11 @@ int main(int argc, char **argv)
                 }
             }
         }
+<<<<<<< HEAD
 #endif
+=======
+#endif /* HITL */
+>>>>>>> 256578a5c6cb6c23da57ca7a46233d07fe52989a
         if (strcmp(var_active_status,"LAND") == 0)
         {
             last_request = ros::Time::now();
@@ -315,10 +331,10 @@ int main(int argc, char **argv)
             var_velocity.twist.linear.y = output_y;
             var_velocity.twist.linear.z = output_z;
         }
-        // cout << "V_X = "<< var_velocity.twist.linear.x << endl;
-        // cout << "V_Y = "<< var_velocity.twist.linear.y << endl;
-        // cout << "V_Z = "<< var_velocity.twist.linear.z << endl;
-        // cout << "===================================================" << endl;
+<<<<<<< HEAD
+=======
+
+>>>>>>> 256578a5c6cb6c23da57ca7a46233d07fe52989a
         switch(mode_controll)
         {
             case LOCAL:
