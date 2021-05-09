@@ -30,10 +30,7 @@
 #include "std_msgs/String.h"
 #include "std_msgs/Float32.h"
 #include "MiniPID.h"
-<<<<<<< HEAD
-=======
 /******************************************************************************* 
->>>>>>> 256578a5c6cb6c23da57ca7a46233d07fe52989a
 
  *                               Definitions 
 
@@ -225,10 +222,7 @@ int main(int argc, char **argv)
     ros::Subscriber yaw_target_sub = nh.subscribe<std_msgs::Float32>("cmd/set_pose/orientation",10,set_target_yaw_callback);
     ros::Subscriber custom_activity_sub = nh.subscribe<std_msgs::String>("cmd/set_activity/type",10,custom_activity_callback);
     ros::Publisher velocity_pub   = nh.advertise <geometry_msgs::TwistStamped>("/mavros/setpoint_velocity/cmd_vel", 30 );
-<<<<<<< HEAD
-=======
 
->>>>>>> 256578a5c6cb6c23da57ca7a46233d07fe52989a
     ros::Rate rate(20.0);
     if(mode_controll == PID)
     {

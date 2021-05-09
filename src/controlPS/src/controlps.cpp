@@ -19,9 +19,6 @@
 #include "std_msgs/String.h"
 #include "std_msgs/Float32.h"
 #include "Kalmanfiler.h"
-<<<<<<< HEAD
-=======
->>>>>>> 256578a5c6cb6c23da57ca7a46233d07fe52989a
 
 /******************************************************************************* 
 
@@ -47,18 +44,13 @@ ros::Publisher custom_activity_pub;
 
 /******************************************************************************* 
 
-<<<<<<< HEAD
-=======
  *                                 Variables 
->>>>>>> 256578a5c6cb6c23da57ca7a46233d07fe52989a
 
  ******************************************************************************/
 static int number_check          = 0;
 static bool LOCK_LAND            = false;
 static bool vLand                = false;
 static bool vend                 = false;
-<<<<<<< HEAD
-=======
 static int LOCK                  = 10;
 time_t baygio                    = time(0);
 tm *ltime                        = localtime(&baygio);
@@ -79,7 +71,6 @@ KalmanPID kalman_x = KalmanPID(0, 5, 1.5);
 KalmanPID kalman_y = KalmanPID(0, 5, 1.5);
 KalmanPID kalman_z = KalmanPID(0, 5, 1.5);
 /******************************************************************************* 
->>>>>>> 256578a5c6cb6c23da57ca7a46233d07fe52989a
 
  *                                  Code 
 
