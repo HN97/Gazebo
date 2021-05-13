@@ -56,7 +56,7 @@ time_t baygio                    = time(0);
 tm *ltime                        = localtime(&baygio);
 static double var_offset_pose[3] = {0.0, 0.0, 0.0};
 static char var_active_status[20];
-static double x, y, z;
+static double x, y, z, xdistance;
 ofstream outfile0, outfile1, outfile2;
 Matrix3f R, cv_rotation, cam2imu_rotation;
 Vector3f positionbe, position_cam, positionaf, offset_marker;
@@ -83,6 +83,19 @@ void turn_off_motors(void)
     ss << "LAND";
     msg.data = ss.str();
     custom_activity_pub.publish(msg);
+}
+
+bool Aruco_check_Area(Vector3f vect)
+{
+    float x, y ,z, size_square;
+
+    x = (float)vect[0];
+    y = (float)vect[1];
+    z = (float)vect[2];
+    size_square = 2*z*tan(20);
+    cout << "size square: " << size_square << endl;
+
+    return true;
 }
 
 /*storing gps data in pointer*/
@@ -167,13 +180,16 @@ static void get_params_cb(const tf2_msgs::TFMessage::ConstPtr& msg)
             // y = kalman_y.getValueKF(y);
             
         }
-        radius = (float)sqrt(pow(positionaf[0],2) + pow(positionaf[1],2));
 
+        Aruco_check_Area(position_cam);
+
+        radius = (float)sqrt(pow(positionaf[0],2) + pow(positionaf[1],2));
+        xdistance = radius*vlocal_pose.pose.position.z/10;
         if (radius <= DISTANCE)
         {
             /* maintain a llatitude of 2 m in z axis */
-            pose.pose.position.x = x;
-            pose.pose.position.y = y;
+            // pose.pose.position.x = x;
+            // pose.pose.position.y = y;
             if (0.6 < vlocal_pose.pose.position.z)
             {
                 if (0.5 >= pose.pose.position.z)

@@ -109,16 +109,6 @@ tf2::Vector3 cv_vector3d_to_tf_vector3(const Vec3d &vec)
     return {vec[0], vec[1], vec[2]};
 }
 
-double getPrec(std::vector<int> ids, int i)
-{
-    vector<int> current_vector(num_detected);
-
-    current_vector     = ids_hashmap[ids[i]];
-    int num_detections = std::accumulate(current_vector.begin(), current_vector.end(), 0);
-
-    return (double) num_detections/num_detected *100;
-}
-
 tf2::Quaternion cv_vector3d_to_tf_quaternion(const Vec3d &rotation_vector)
 {
     Mat rotation_matrix;
@@ -153,7 +143,8 @@ tf2::Transform create_transform(const Vec3d &tvec, const Vec3d &rotation_vector)
 
 void callback_camera_info(const CameraInfoConstPtr &msg)
 {
-    if (camera_model_computed) {
+    if (camera_model_computed)
+    {
         return;
     }
     camera_model.fromCameraInfo(msg);
@@ -263,28 +254,32 @@ void callback(const ImageConstPtr &image_msg)
             ROS_INFO("x: [%f]", translation_vectors[i](0));
             ROS_INFO("y: [%f]", translation_vectors[i](1));
             ROS_INFO("z: [%f]", translation_vectors[i](2));
+            // vector<Point2f> topLeft, bottomRight;
+            // int cX, cY;
+            // topLeft.push_back(corners_cvt[0][0]);
+            // // bottomRight = corners_cvt[0][3];
+            // cout << corners_cvt[0][1] << endl;
+            // cout << topLeft[0]<< endl;
+
+            // cX = int((topLeft[0].x + bottomRight[0].x)/2.0);
+            // cY = int((topLeft[0].y + bottomRight[0].y)/2.0);
+            // circle( display_image, Point(cX, cY), 4, Scalar(255,0,255), 3, LINE_AA);
         }
         /*Draw marker poses*/
         if (show_detections)
         {
             aruco::drawDetectedMarkers(display_image, corners_cvt, ids);
         }
-        
+        ROS_INFO("%d", result_img_pub_.getNumSubscribers());
         if (result_img_pub_.getNumSubscribers() > 0)
         {
-
-            cv::putText(display_image, ""+SSTR(image_fps)+"FPS m. size: "+SSTR(marker_size)+" m", cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 0.8, CV_RGB(255, 255, 0), 2);
+            putText(display_image, ""+SSTR(image_fps)+"FPS m. size: "+SSTR(marker_size)+" m", cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 0.8, CV_RGB(255, 255, 0), 2);
             for(int i = 0; i<ids.size();i++)
             {
-                double prec = getPrec(ids,i);
-                if(prec>=min_prec_value)
-                {
                     Vec3d distance_z_first = translation_vectors[i];
                     double distance_z = ROUND3(distance_z_first[2]);
-                    // cv::putText(display_image, "id: "+SSTR(ids[i])+" z dis: "+SSTR(distance_z)+" m  "+SSTR(ROUND2(prec))+" %", cv::Point(10, 70+i*30), cv::FONT_HERSHEY_SIMPLEX, 0.9, CV_RGB(0, 255, 0), 2);
-                    cv::putText(display_image, "id: "+SSTR(ids[i])+" z dis: "+SSTR(distance_z)+" m", cv::Point(10, 70+i*30), cv::FONT_HERSHEY_SIMPLEX, 0.9, CV_RGB(0, 255, 0), 2);
+                    putText(display_image, "id: "+SSTR(ids[i])+" z dis: "+SSTR(distance_z)+" m", cv::Point(10, 70+i*30), cv::FONT_HERSHEY_SIMPLEX, 0.9, CV_RGB(0, 255, 0), 2);
                     result_img_pub_.publish(cv_bridge::CvImage(std_msgs::Header(), "bgr8", display_image).toImageMsg());
-                }
             }
         }
         /*Publish TFs for each of the markers*/
@@ -381,18 +376,11 @@ int main(int argc, char **argv)
     /* camera */
     // ros::Subscriber rgb_sub = nh.subscribe(rgb_topic.c_str(), queue_size, callback);
     // ros::Subscriber rgb_info_sub = nh.subscribe(rgb_info_topic.c_str(), queue_size, callback_camera_info);
-    ros::Subscriber parameter_sub = nh.subscribe("/update_params", queue_size, update_params_cb);
-    ros::Rate rate(20.0);
+    // ros::Subscriber parameter_sub = nh.subscribe("/update_params", queue_size, update_params_cb);
     /*Publisher:*/
     image_transport::ImageTransport it(nh);
-    result_img_pub_ = it.advertise("/result_img", 1);
+    result_img_pub_ = it.advertise("/result_img", 10);
     tf_list_pub_    = nh.advertise<tf2_msgs::TFMessage>("/tf_list", 1000);
     ros::spin();
-    rate.sleep();
-    while(1)
-    {
-
-    }
-
     return 0;
 }

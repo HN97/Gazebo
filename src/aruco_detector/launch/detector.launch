@@ -15,8 +15,13 @@
     <!-- <arg name="dictionary_name" default="DICT_5X5_50" /> -->
     <arg name="dictionary_name" default="DICT_6X6_250" />
     <arg name="blur_window_size" default="7" />
-    <arg name="num_detected" default="100" /><!-- 0: do not use it, -->
+    <arg name="num_detected" default="25" /><!-- 0: do not use it, -->
     <arg name="min_prec_value" default="50" /><!-- 0: do not use it, 80 means aruco marker must be detected in 80% of the last pics to be displayed -->
+
+    <!-- start bag file in a loop -->
+    <group if="$(arg use_bag)" >
+        <node pkg="rosbag" type="play" name="rosbag_play" args="-l $(find aruco_detector_ocv)/data/$(arg bag_name).bag" />
+    </group>
 
 <!-- 1920x1080  -->
 <node if="$(eval arg('image_width') ==1920)" name="camera_info" pkg="rostopic" type="rostopic"
@@ -45,6 +50,6 @@
 
 <!-- Enable RVIZ -->
    <group if="$(arg use_rviz)" >
-        <!-- <node pkg="rviz" type="rviz" name="markers_extrinsic" args="-d $(find aruco_detector)/config/aruco_opencv.rviz"/> -->
+        <node pkg="rviz" type="rviz" name="markers_extrinsic" args="-d $(find aruco_detector)/config/aruco_opencv.rviz"/>
     </group>
 </launch>

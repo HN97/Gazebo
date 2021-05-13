@@ -31,7 +31,7 @@
  *                                Namespace
 
  ******************************************************************************/ 
->>>>>>> 256578a5c6cb6c23da57ca7a46233d07fe52989a
+
 using namespace std;
 using namespace Eigen;
 
@@ -181,7 +181,7 @@ static void get_params_cb(const tf2_msgs::TFMessage::ConstPtr& msg)
                 // }
                 // else
                 // {
-                    pose.pose.position.z = 7;
+                    pose.pose.position.z = 0.2;
                 // }
             }
             else
@@ -193,7 +193,7 @@ static void get_params_cb(const tf2_msgs::TFMessage::ConstPtr& msg)
         {
             pose.pose.position.x = x;
             pose.pose.position.y = y;
-            pose.pose.position.z = vlocal_pose.pose.position.z - 0.5;
+            pose.pose.position.z = 0.2;
             // pose.pose.position.z = 6;
             ROS_INFO("Aligning........!");
             LOCK = 0;

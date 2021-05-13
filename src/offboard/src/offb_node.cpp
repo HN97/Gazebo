@@ -65,6 +65,10 @@ mavros_msgs::State current_state;
 geometry_msgs::PoseStamped pose;
 geometry_msgs::PoseStamped vlocal_pose;
 geometry_msgs::TwistStamped var_velocity;
+
+MiniPID pid_x = MiniPID(3.0, 0.2, 0.05, 0.15);
+MiniPID pid_y = MiniPID(3.0, 0.2, 0.05, 0.1);
+MiniPID pid_z = MiniPID(1.5, .012, 0.05, 0.1);
 /******************************************************************************* 
 
  *                                  Code 
@@ -226,9 +230,6 @@ int main(int argc, char **argv)
     ros::Rate rate(20.0);
     if(mode_controll == PID)
     {
-        MiniPID pid_x = MiniPID(3.0, 0.2, 0.05, 0.15);
-        MiniPID pid_y = MiniPID(3.0, 0.2, 0.05, 0.1);
-        MiniPID pid_z = MiniPID(1.5, .012, 0.05, 0.1);
         pid_x.setOutputLimits(-0.5, 1.0);
         pid_y.setOutputLimits(-0.5, 1.0);
         pid_z.setOutputLimits(-1.0, 2.0);
@@ -285,11 +286,7 @@ int main(int argc, char **argv)
                 }
             }
         }
-<<<<<<< HEAD
-#endif
-=======
 #endif /* HITL */
->>>>>>> 256578a5c6cb6c23da57ca7a46233d07fe52989a
         if (strcmp(var_active_status,"LAND") == 0)
         {
             last_request = ros::Time::now();
@@ -325,10 +322,6 @@ int main(int argc, char **argv)
             var_velocity.twist.linear.y = output_y;
             var_velocity.twist.linear.z = output_z;
         }
-<<<<<<< HEAD
-=======
-
->>>>>>> 256578a5c6cb6c23da57ca7a46233d07fe52989a
         switch(mode_controll)
         {
             case LOCAL:
