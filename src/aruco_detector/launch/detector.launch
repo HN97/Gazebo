@@ -1,12 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <launch>
     <arg name="use_rviz" default="True" />
-    <arg name="use_camera" default="True" />
-    <arg name="use_bag" default="False" />
+    <arg name="use_camera" default="False" />
     <arg name="image_width" default="1920" /> 
     <arg name="image_height" default="1080" />
-<!--     <arg name="image_width" default="640" /> 
-    <arg name="image_height" default="480" /> -->
     <arg name="camera" default="/camera/color/image_raw" />
     <arg name="camera_info" default="/camera/color/camera_info" />
     <arg name="tf_prefix" default="marker_id" />
@@ -18,10 +15,17 @@
     <arg name="num_detected" default="25" /><!-- 0: do not use it, -->
     <arg name="min_prec_value" default="50" /><!-- 0: do not use it, 80 means aruco marker must be detected in 80% of the last pics to be displayed -->
 
-    <!-- start bag file in a loop -->
-    <group if="$(arg use_bag)" >
-        <node pkg="rosbag" type="play" name="rosbag_play" args="-l $(find aruco_detector_ocv)/data/$(arg bag_name).bag" />
-    </group>
+   <!--   usb_cam node, as pixel_format use yuyv or mjpeg -->
+   <group if="$(arg use_camera)" >
+  <node name="usb_cam" pkg="usb_cam" type="usb_cam_node" output="screen">
+    <param name="video_device" value="/dev/video1" />
+    <param name="image_width" value="$(arg image_width)" />
+    <param name="image_height" value="$(arg image_height)" />
+    <param name="pixel_format" value="yuyv" />
+    <param name="camera_frame_id" value="usb_cam" />
+    <param name="io_method" value="mmap"/>
+  </node>
+  </group>
 
 <!-- 1920x1080  -->
 <node if="$(eval arg('image_width') ==1920)" name="camera_info" pkg="rostopic" type="rostopic"

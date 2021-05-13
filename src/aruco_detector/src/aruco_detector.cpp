@@ -86,7 +86,6 @@ std::ostringstream vector_to_marker;
 int num_detected   = 10;  // =0 -> not used
 int min_prec_value = 80; // min precentage value to be a detected marker.
 int switch_ID      = 25;
-map<int,  std::vector<int>  > ids_hashmap;   // key: ids, value: number within last 100 imgs
 
 /******************************************************************************* 
 
@@ -254,15 +253,27 @@ void callback(const ImageConstPtr &image_msg)
             ROS_INFO("x: [%f]", translation_vectors[i](0));
             ROS_INFO("y: [%f]", translation_vectors[i](1));
             ROS_INFO("z: [%f]", translation_vectors[i](2));
-            // vector<Point2f> topLeft, bottomRight;
-            // int cX, cY;
-            // topLeft.push_back(corners_cvt[0][0]);
-            // // bottomRight = corners_cvt[0][3];
+            vector<Point2f> topLeft, bottomRight;
+            int cX, cY;
+            float bounding = 0.0, tan20;
+            topLeft.push_back(corners_cvt[0][0]);
+            bottomRight.push_back(corners_cvt[0][3]);
             // cout << corners_cvt[0][1] << endl;
             // cout << topLeft[0]<< endl;
+            // cout << bottomRight[0]<< endl;
 
-            // cX = int((topLeft[0].x + bottomRight[0].x)/2.0);
-            // cY = int((topLeft[0].y + bottomRight[0].y)/2.0);
+            cX = int((topLeft[0].x + bottomRight[0].x)/2.0);
+            cY = int((topLeft[0].y + bottomRight[0].y)/2.0);
+            cout << cX << "\t" << cY << "\t" <<translation_vectors[i](2)<<endl;
+            tan20 = 0.36397023;
+            bounding = tan20*translation_vectors[i](2)*2;
+            cout<< "bounding: "<< bounding << endl;
+            int pixcelx = (abs(960 - cX)*bounding)/(abs(translation_vectors[i](0))*2);
+            int pixcely = (abs(540 - cY)*bounding)/(abs(translation_vectors[i](1))*2);
+            cout<< "pixcel: "<< pixcelx << "    "<< pixcely << endl;
+            cout << 960+pixcelx << "\t" << 540+pixcely << endl;
+            cout << 960-pixcelx << "\t" << 540-pixcely << endl;
+            rectangle(display_image, Point(960+pixcelx, 540+pixcely), Point(960-pixcelx, 540-pixcely), Scalar(0, 255, 0), 3, 8, 0);
             // circle( display_image, Point(cX, cY), 4, Scalar(255,0,255), 3, LINE_AA);
         }
         /*Draw marker poses*/
@@ -270,7 +281,7 @@ void callback(const ImageConstPtr &image_msg)
         {
             aruco::drawDetectedMarkers(display_image, corners_cvt, ids);
         }
-        ROS_INFO("%d", result_img_pub_.getNumSubscribers());
+
         if (result_img_pub_.getNumSubscribers() > 0)
         {
             putText(display_image, ""+SSTR(image_fps)+"FPS m. size: "+SSTR(marker_size)+" m", cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 0.8, CV_RGB(255, 255, 0), 2);
