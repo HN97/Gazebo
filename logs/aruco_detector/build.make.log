@@ -1,0 +1,4 @@
+[35m[1mScanning dependencies of target aruco_detector_node[0m
+[ 50%] [32mBuilding CXX object CMakeFiles/aruco_detector_node.dir/src/aruco_detector.cpp.o[0m
+[100%] [32m[1mLinking CXX executable /home/nam97/Gazebo/devel/.private/aruco_detector/lib/aruco_detector/node[0m
+[100%] Built target aruco_detector_node

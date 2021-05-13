@@ -1,0 +1,5 @@
+[35m[1mScanning dependencies of target testing_node[0m
+[ 33%] [32mBuilding CXX object CMakeFiles/testing_node.dir/home/nam97/Gazebo/kalman_filter/Kalmanfiler.cpp.o[0m
+[ 66%] [32mBuilding CXX object CMakeFiles/testing_node.dir/src/test_separate.cpp.o[0m
+[100%] [32m[1mLinking CXX executable /home/nam97/Gazebo/devel/.private/testing/lib/testing/node[0m
+[100%] Built target testing_node

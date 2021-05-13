@@ -1,0 +1,4 @@
+Symlinking /home/nam97/Gazebo/devel/share/testing/cmake/testingConfig-version.cmake
+Symlinking /home/nam97/Gazebo/devel/share/testing/cmake/testingConfig.cmake
+Symlinking /home/nam97/Gazebo/devel/lib/testing/node
+Symlinking /home/nam97/Gazebo/devel/lib/pkgconfig/testing.pc

@@ -1,0 +1,10 @@
+[35m[1mScanning dependencies of target offb_node[0m
+[ 16%] [32mBuilding CXX object CMakeFiles/offb_node.dir/home/nam97/Gazebo/pid/MiniPID.cpp.o[0m
+[ 33%] [32mBuilding CXX object CMakeFiles/offb_node.dir/src/offb_node.cpp.o[0m
+[ 50%] [32m[1mLinking CXX executable /home/nam97/Gazebo/devel/.private/offboard/lib/offboard/offb_node[0m
+[ 50%] Built target offb_node
+[35m[1mScanning dependencies of target off_node_plugin[0m
+[ 66%] [32mBuilding CXX object CMakeFiles/off_node_plugin.dir/src/offb_node.cpp.o[0m
+[ 83%] [32mBuilding CXX object CMakeFiles/off_node_plugin.dir/home/nam97/Gazebo/pid/MiniPID.cpp.o[0m
+[100%] [32m[1mLinking CXX shared library /home/nam97/Gazebo/devel/.private/offboard/lib/liboff_node_plugin.so[0m
+[100%] Built target off_node_plugin

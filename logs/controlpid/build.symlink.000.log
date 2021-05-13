@@ -1,0 +1,5 @@
+Symlinking /home/nam97/Gazebo/devel/share/controlpid/cmake/controlpidConfig-version.cmake
+Symlinking /home/nam97/Gazebo/devel/share/controlpid/cmake/controlpidConfig.cmake
+Symlinking /home/nam97/Gazebo/devel/lib/libcontrolpid_node_plugin.so
+Symlinking /home/nam97/Gazebo/devel/lib/pkgconfig/controlpid.pc
+Symlinking /home/nam97/Gazebo/devel/lib/controlpid/node
