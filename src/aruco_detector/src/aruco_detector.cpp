@@ -30,6 +30,7 @@
 #include <opencv2/highgui.hpp>
 #include <opencv2/aruco.hpp>
 #include <opencv2/imgproc.hpp>
+#include <stdint.h>
 /******************************************************************************* 
 
  *                               Definitions 
@@ -40,7 +41,7 @@
 #define ROUND3(x)       std::round(x * 1000) / 1000
 #define IDLOW              23
 #define IDLARGE            25
-#define SWITCH_ALTITUDE    4
+#define SWITCH_ALTITUDE    3
 /******************************************************************************* 
 
  *                                Namespace
@@ -66,11 +67,11 @@ ros::Publisher tf_list_pub_;
 /* Define global variables */
 bool camera_model_computed = false;
 bool show_detections;
-bool enable_blur           = true;
-int blur_window_size       = 7;
-int image_fps              = 14;
-int image_width            = 1920;
-int image_height           = 1080;
+bool enable_blur = true;
+int blur_window_size = 7;
+int image_fps = 14;
+int image_width = 1920;
+int image_height = 1080;
 /* Offset bwt the center of markers in coordinate marker*/
 float marker_size;
 string marker_tf_prefix;
@@ -81,11 +82,9 @@ Ptr<cv::aruco::Dictionary> dictionary;
 /**/
 std::ostringstream vector_to_marker;
 
-
-// hashmap used for uncertainty:
-int num_detected   = 10;  // =0 -> not used
-int min_prec_value = 80; // min precentage value to be a detected marker.
-int switch_ID      = 25;
+uint8_t switch_ID      = 25;
+uint16_t halfpX = image_width/2;
+uint16_t halfpY = image_height/2;
 
 /******************************************************************************* 
 
@@ -101,6 +100,19 @@ void int_handler(int x) {
 
     ros::shutdown();
     exit(0);
+}
+
+bool Aruco_check_Area(uint16_t cX, uint16_t cY, uint16_t cXB, uint16_t cYB)
+{
+    uint16_t lengM, lengBox;
+    lengM = sqrt(pow(abs(halfpX - cX),2) + pow(abs(halfpY - cY),2));
+    lengBox = sqrt(pow(abs(cXB),2) + pow(abs(cYB),2));
+
+    if(lengM <= lengBox)
+    {
+        return true;
+    }
+    return false;
 }
 
 tf2::Vector3 cv_vector3d_to_tf_vector3(const Vec3d &vec)
@@ -166,7 +178,8 @@ void callback(const ImageConstPtr &image_msg)
     vector<int> ids_m;
     vector<int> ids;
     vector<vector<Point2f>> corners, rejected;
-    vector<vector<Point2f>> corners_cvt ;
+    vector<vector<Point2f>> corners_cvt;
+    bool inArea = false;
 
     if (!camera_model_computed)
     {
@@ -181,8 +194,8 @@ void callback(const ImageConstPtr &image_msg)
     /* Detect the markers */
     aruco::detectMarkers(image, dictionary, corners, ids_m, detector_params, rejected);
 
-    cv::line(display_image, cv::Point(960, 0), cv::Point(960, 1080), cv::Scalar(245, 7, 96), 2);    /* y */
-    cv::line(display_image, cv::Point(0, 540), cv::Point(1920, 540), cv::Scalar(11, 220, 93), 2);   /* x */
+    cv::line(display_image, cv::Point(halfpX, 0), cv::Point(halfpX, image_height), cv::Scalar(245, 7, 96), 2);    /* y */
+    cv::line(display_image, cv::Point(0, halfpY), cv::Point(image_width, halfpY), cv::Scalar(11, 220, 93), 2);   /* x */
  
     /* Show image if no markers are detected */
     if (ids_m.empty())
@@ -254,27 +267,32 @@ void callback(const ImageConstPtr &image_msg)
             ROS_INFO("y: [%f]", translation_vectors[i](1));
             ROS_INFO("z: [%f]", translation_vectors[i](2));
             vector<Point2f> topLeft, bottomRight;
-            int cX, cY;
+            uint16_t cX = 0;
+            uint16_t cY = 0;
             float bounding = 0.0, tan20;
             topLeft.push_back(corners_cvt[0][0]);
-            bottomRight.push_back(corners_cvt[0][3]);
-            // cout << corners_cvt[0][1] << endl;
+            bottomRight.push_back(corners_cvt[0][2]);
+            // cout << corners_cvt[0]<< endl;
             // cout << topLeft[0]<< endl;
             // cout << bottomRight[0]<< endl;
 
-            cX = int((topLeft[0].x + bottomRight[0].x)/2.0);
-            cY = int((topLeft[0].y + bottomRight[0].y)/2.0);
+            cX = uint16_t((topLeft[0].x + bottomRight[0].x)/2.0);
+            cY = uint16_t((topLeft[0].y + bottomRight[0].y)/2.0);
             cout << cX << "\t" << cY << "\t" <<translation_vectors[i](2)<<endl;
             tan20 = 0.36397023;
             bounding = tan20*translation_vectors[i](2)*2;
             cout<< "bounding: "<< bounding << endl;
-            int pixcelx = (abs(960 - cX)*bounding)/(abs(translation_vectors[i](0))*2);
-            int pixcely = (abs(540 - cY)*bounding)/(abs(translation_vectors[i](1))*2);
-            cout<< "pixcel: "<< pixcelx << "    "<< pixcely << endl;
-            cout << 960+pixcelx << "\t" << 540+pixcely << endl;
-            cout << 960-pixcelx << "\t" << 540-pixcely << endl;
-            rectangle(display_image, Point(960+pixcelx, 540+pixcely), Point(960-pixcelx, 540-pixcely), Scalar(0, 255, 0), 3, 8, 0);
-            // circle( display_image, Point(cX, cY), 4, Scalar(255,0,255), 3, LINE_AA);
+            uint16_t pixcelx = (abs(halfpX - cX)*bounding) / (abs(translation_vectors[i](0))*2);
+            uint16_t pixcely = (abs(halfpY - cY)*bounding) / (abs(translation_vectors[i](1))*2);
+            cout << "pixcel: "<< pixcelx << "    "<< pixcely << endl;
+            cout << halfpX+pixcelx << "\t" << halfpY+pixcely << endl;
+            cout << halfpX-pixcelx << "\t" << halfpY-pixcely << endl;
+            rectangle(display_image, Point(halfpX+pixcelx, halfpY+pixcely), Point(halfpX-pixcelx, halfpY-pixcely), Scalar(0, 255, 20), 3, 8, 0);
+            inArea = Aruco_check_Area(cX, cY, pixcelx, pixcely);
+            if (inArea)
+            {
+                ROS_INFO("Marker in the box area");
+            }
         }
         /*Draw marker poses*/
         if (show_detections)
@@ -371,8 +389,6 @@ int main(int argc, char **argv)
     nh.param("image_fps", image_fps, 14);
     nh.param("image_width", image_width, 1920);
     nh.param("image_height", image_height, 1080);
-    nh.param("num_detected", num_detected, 50);
-    nh.param("min_prec_value", min_prec_value, 80);
 
     detector_params = aruco::DetectorParameters::create();
     detector_params->cornerRefinementMethod = aruco::CORNER_REFINE_SUBPIX;

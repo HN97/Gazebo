@@ -198,7 +198,7 @@ static void get_params_cb(const tf2_msgs::TFMessage::ConstPtr& msg)
                 }
                 else
                 {
-                    pose.pose.position.z = vlocal_pose.pose.position.z -4;
+                    pose.pose.position.z = vlocal_pose.pose.position.z - 2;
                     // pose.pose.position.z = abs(z);
                 }
             }
@@ -246,6 +246,17 @@ int main(int argc, char **argv)
 {
 
     int sizeof_queue     = 10;
+    char path[250];
+    char path_1[250];
+    char path_2[250];
+    char path_3[250];
+    getcwd(path, sizeof(path));
+    strcpy(path_1, path);
+    strcpy(path_2, path);
+    strcpy(path_3, path);
+    strcat(path_1, "/Tool/gen_report/gps.txt");
+    strcat(path_2, "/Tool/gen_report/Aruco2Drone.txt");
+    strcat(path_3, "/Tool/gen_report/Aruco2NEU.txt");
     kalman_x.setMeasurement(0.05);
     kalman_y.setMeasurement(0.05);
 
@@ -257,9 +268,9 @@ int main(int argc, char **argv)
     cout << "Thoi gian: "<< ltime->tm_hour << ":";
     cout << ltime->tm_min << ":";
     cout << ltime->tm_sec << endl;
-    outfile0.open("/home/nam97/Gazebo/Tool/gen_report/gps.txt");
-    outfile1.open("/home/nam97/Gazebo/Tool/gen_report/Aruco2Drone.txt");
-    outfile2.open("/home/nam97/Gazebo/Tool/gen_report/Aruco2NEU.txt");
+    outfile0.open(path_1);
+    outfile1.open(path_2);
+    outfile2.open(path_3);
     outfile0 << "x " << "y " << "z " << "m " << "s" << endl;
     outfile1 << "x " << "y " << "z " << "m " << "s" << endl;
     outfile2 << "x " << "y " << "z " << "m " << "s" << endl;

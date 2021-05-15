@@ -56,6 +56,7 @@ time_t baygio          = time(0);
 tm *ltime              = localtime(&baygio);
 static int STATE_CHECK = 1;
 ofstream outfile0;
+char path[250];
 static char var_active_status[20];
 Matrix3f R;     /* declaring a 3*3 matrix */
 Vector3f var_offset_pose;     /* vectors to store position before and after */
@@ -136,7 +137,7 @@ void set_target_position_callback(const geometry_msgs::PoseStamped::ConstPtr& ms
 
 void set_target_yaw_callback(const std_msgs::Float32::ConstPtr& msg)
 {
-
+    float angle_yaw = msg.data;
 }
 
 void custom_activity_callback(const std_msgs::String::ConstPtr& msg)
@@ -145,15 +146,12 @@ void custom_activity_callback(const std_msgs::String::ConstPtr& msg)
     cout << var_active_status << endl;
 }
 
-// MiniPID pid_x = MiniPID(.03, .0, .0, 0.1);
-// MiniPID pid_y = MiniPID(.05, .0, .0);
-// MiniPID pid_z = MiniPID(.128, .009, 0.05);
-
 void signal_callback_handler(int signum)
 {
     cout << "======================================="<< endl;
     outfile0.close();
     cout << "\nSaved File" << endl;
+    cout << path << endl;
     cout << "EXIT programme " << endl;
     exit(signum);
 }
@@ -162,8 +160,11 @@ int main(int argc, char **argv)
 {
     int mode_controll;
     double output_x, output_y, output_z;
+    getcwd(path, sizeof(path));
+    strcat(path, "/Tool/gen_report/velocity.txt");
 
-    outfile0.open("/home/nam97/Gazebo/Tool/gen_report/velocity.txt");
+
+    outfile0.open(path);
     outfile0 << "x " << "y " << "z " << "m " << "s" << endl;
 
     cout<< "______  __   __    ___     _____    _____ " << endl;
