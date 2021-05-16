@@ -30,6 +30,9 @@
 #include "std_msgs/String.h"
 #include "std_msgs/Float32.h"
 #include "MiniPID.h"
+#include <stdio.h>
+#include <stdlib.h>
+
 /******************************************************************************* 
 
  *                               Definitions 
@@ -38,6 +41,7 @@
 #define LOCAL    1
 #define PID      2
 #define PRECISION(x)    round(x * 100) / 100
+#define CHECK_M         (CHECK_MARK="\033[0;32m\xE2\x9C\x94\033[0m")
 
 /******************************************************************************* 
 
@@ -82,7 +86,7 @@ void state_cb(const mavros_msgs::State::ConstPtr& msg)
 }
 
 /* storing gps data in pointer */
-void mavrosPoseCallback(const geometry_msgs::PoseStamped::ConstPtr &msg)
+void mavrosPose_Callback(const geometry_msgs::PoseStamped::ConstPtr &msg)
 {
     vlocal_pose=*msg;
 }
@@ -135,10 +139,10 @@ void set_target_position_callback(const geometry_msgs::PoseStamped::ConstPtr& ms
     // }
 }
 
-void set_target_yaw_callback(const std_msgs::Float32::ConstPtr& msg)
-{
-    float angle_yaw = msg.data;
-}
+// void set_target_yaw_callback(const std_msgs::Float32::ConstPtr& msg)
+// {
+//     float angle_yaw = msg.data;
+// }
 
 void custom_activity_callback(const std_msgs::String::ConstPtr& msg)
 {
@@ -148,7 +152,7 @@ void custom_activity_callback(const std_msgs::String::ConstPtr& msg)
 
 void signal_callback_handler(int signum)
 {
-    cout << "======================================="<< endl;
+    cout << "\n======================================="<< endl;
     outfile0.close();
     cout << "\nSaved File" << endl;
     cout << path << endl;
@@ -159,11 +163,12 @@ void signal_callback_handler(int signum)
 int main(int argc, char **argv)
 {
     int mode_controll;
+    char path_script[250];
     double output_x, output_y, output_z;
     getcwd(path, sizeof(path));
+    strcpy(path_script, path);
     strcat(path, "/Tool/gen_report/velocity.txt");
-
-
+    strcat(path_script, "/scripts/gui_script.sh");
     outfile0.open(path);
     outfile0 << "x " << "y " << "z " << "m " << "s" << endl;
 
@@ -175,8 +180,9 @@ int main(int argc, char **argv)
     cout<< "\\_|     \\/   \\/     |_/   \\_____/  \\_____/\n\n" <<endl;
     cout << "-----Staring mode OFFBOARD CONTROL-----"<< endl;
     cout << "======================================="<< endl;
-    cout << "| 1: Control follow local position    |"<< endl;
-    cout << "| 2: Control follow PID               |"<< endl;
+    cout << "\U0001F449 1: Control follow local position    |"<< endl;
+    cout << "\U0001F449 2: Control follow PID               |"<< endl;
+    cout << "\U0001F449 3: Control follow Pose & PID        |"<< endl;
     cout << "======================================="<< endl;
     cout << " ENTER Option: ";
 
@@ -213,8 +219,8 @@ int main(int argc, char **argv)
             ("mavros/state", 10, state_cb);
     ros::Subscriber imu_sub = nh.subscribe<sensor_msgs::Imu>
             ("/mavros/imu/data",10,imuCallback);
-    ros::Subscriber gps_sub = nh.subscribe<geometry_msgs::PoseStamped>
-            ("/mavros/local_position/pose",100,mavrosPoseCallback);
+    ros::Subscriber local_position_sub = nh.subscribe<geometry_msgs::PoseStamped>
+            ("/mavros/local_position/pose",100,mavrosPose_Callback);
     ros::Publisher local_pos_pub = nh.advertise<geometry_msgs::PoseStamped>
             ("mavros/setpoint_position/local", 10);
     ros::ServiceClient arming_client = nh.serviceClient<mavros_msgs::CommandBool>
@@ -224,7 +230,7 @@ int main(int argc, char **argv)
     // ros::Subscriber pose_sub = nh.subscribe("/tf_list", 10, get_params_cb);
 
     ros::Subscriber position_target_sub = nh.subscribe<geometry_msgs::PoseStamped>("cmd/set_pose/position1",30,set_target_position_callback);
-    ros::Subscriber yaw_target_sub = nh.subscribe<std_msgs::Float32>("cmd/set_pose/orientation",10,set_target_yaw_callback);
+    // ros::Subscriber yaw_target_sub = nh.subscribe<std_msgs::Float32>("cmd/set_pose/orientation",10,set_target_yaw_callback);
     ros::Subscriber custom_activity_sub = nh.subscribe<std_msgs::String>("cmd/set_activity/type",10,custom_activity_callback);
     ros::Publisher velocity_pub   = nh.advertise <geometry_msgs::TwistStamped>("/mavros/setpoint_velocity/cmd_vel", 30 );
 
@@ -245,15 +251,25 @@ int main(int argc, char **argv)
         rate.sleep();
     }
     /* send a few setpoints before starting */
-    cout << "LOADING";
+    cout << "Stable param\n" << endl;
     for(int i = 10; ros::ok() && i > 0; --i)
     {
-        cout <<".";
         local_pos_pub.publish(pose);
         ros::spinOnce();
         rate.sleep();
     }
-    cout<<"100%"<<endl;
+    // system("./scripts/gui_script.sh 0 0 \'init\'");
+    // system("./scripts/gui_script.sh 30 0.75 \'configuration files\'");
+    // system("./scripts/gui_script.sh 90 0.75 \'update registery\'");
+    // system("./scripts/gui_script.sh 100 2 \'done\'");
+    // system("printf \"\n\"");
+
+    // system("./scripts/gui_script.sh 0 0 \'init\'");
+    // system("./scripts/gui_script.sh 30 1 \'configuration files\'");
+    // system("./scripts/gui_script.sh 60 1 \'download file\'");
+    // system("./scripts/gui_script.sh 100 1 \'done\'");;
+    // cout << "\n\u2705 Completed."<<endl;
+
     mavros_msgs::SetMode offb_set_mode, offset_mode;
     mavros_msgs::CommandBool arm_cmd;
     offb_set_mode.request.custom_mode = "OFFBOARD";
@@ -264,7 +280,15 @@ int main(int argc, char **argv)
 
     while(ros::ok())
     {
-#ifndef HITL
+#ifdef HITL
+        system("echo -n \"\e[4mWaiting for activation mode\e[0m\n\"");
+        system("echo -n \"OFFBOARD mode...\"");
+        while(current_state.mode != "OFFBOARD");
+        system("echo -e \"\\r\033[0;32m\xE2\x9C\x94\033[0m OFFBOARD ready!!!\"");
+        system("echo -n \"OFFBOARD mode...\"");
+        while(!current_state.armed);
+        system("echo -e \"\\r\033[0;32m\xE2\x9C\x94\033[0m OFFBOARD ready!!!\"");
+#else
         if (STATE_CHECK == 1)
         {
             if( current_state.mode != "OFFBOARD" && (ros::Time::now() - last_request > ros::Duration(5.0)))
