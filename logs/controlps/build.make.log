@@ -1,5 +1,0 @@
-[35m[1mScanning dependencies of target controlps_node[0m
-[ 33%] [32mBuilding CXX object CMakeFiles/controlps_node.dir/home/nam97/Gazebo/kalman_filter/Kalmanfiler.cpp.o[0m
-[ 66%] [32mBuilding CXX object CMakeFiles/controlps_node.dir/src/controlps.cpp.o[0m
-[100%] [32m[1mLinking CXX executable /home/nam97/Gazebo/devel/.private/controlps/lib/controlps/node[0m
-[100%] Built target controlps_node
