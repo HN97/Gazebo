@@ -29,9 +29,11 @@
 #include <cstdlib>
 #include "std_msgs/String.h"
 #include "std_msgs/Float32.h"
+#include "std_msgs/Int16.h"
 #include "MiniPID.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <mavros_msgs/PositionTarget.h>
 
 /******************************************************************************* 
 
@@ -40,6 +42,7 @@
  ******************************************************************************/ 
 #define LOCAL    1
 #define PID      2
+#define BOTH     3
 #define PRECISION(x)    round(x * 100) / 100
 #define CHECK_M         (CHECK_MARK="\033[0;32m\xE2\x9C\x94\033[0m")
 
@@ -62,6 +65,7 @@ static int STATE_CHECK = 1;
 ofstream outfile0;
 char path[250];
 static char var_active_status[20];
+int16_t mode_select = LOCAL;
 Matrix3f R;     /* declaring a 3*3 matrix */
 Vector3f var_offset_pose;     /* vectors to store position before and after */
 Vector3f positionbe;
@@ -71,9 +75,9 @@ geometry_msgs::PoseStamped pose;
 geometry_msgs::PoseStamped vlocal_pose;
 geometry_msgs::TwistStamped var_velocity;
 
-MiniPID pid_x = MiniPID(3.0, 0.2, 0.05, 0.15);
-MiniPID pid_y = MiniPID(3.0, 0.2, 0.05, 0.1);
-MiniPID pid_z = MiniPID(1.5, .012, 0.05, 0.1);
+MiniPID pid_x = MiniPID(3.0, 0.2, 0.0, 0.15);
+MiniPID pid_y = MiniPID(3.0, 0.2, 0.0, 0.1);
+MiniPID pid_z = MiniPID(1.5, .012, 0.0, 0.1);
 /******************************************************************************* 
 
  *                                  Code 
@@ -144,6 +148,12 @@ void set_target_position_callback(const geometry_msgs::PoseStamped::ConstPtr& ms
 //     float angle_yaw = msg.data;
 // }
 
+void both_mode_callback(const std_msgs::Int16::ConstPtr& msg)
+{
+    mode_select = msg->data;
+    cout << mode_select << endl;
+}
+
 void custom_activity_callback(const std_msgs::String::ConstPtr& msg)
 {
     strcpy(var_active_status, msg->data.c_str());
@@ -187,6 +197,12 @@ int main(int argc, char **argv)
     cout << " ENTER Option: ";
 
     cin >> mode_controll;
+#ifdef HITL
+    pose.pose.position.x = 0;
+    pose.pose.position.y = 0;
+    pose.pose.position.z = 0;
+
+#else
     /* Init position */
     switch(mode_controll)
     {
@@ -205,37 +221,52 @@ int main(int argc, char **argv)
             cout << "Axis y : " << pose.pose.position.y << "m" << endl;
             cout << "Axis z : " << pose.pose.position.z << "m" << endl;
             break;
+        case BOTH:
+            cout << "PID controller is chosen \nENTER Position Local ENU frame [x y z]: ";
+            cin  >> pose.pose.position.x >> pose.pose.position.y >> pose.pose.position.z ;
+            cout << "Time: " << endl;
+            cout << "Axis x : " << pose.pose.position.x  << "m" << endl;
+            cout << "Axis y : " << pose.pose.position.y << "m" << endl;
+            cout << "Axis z : " << pose.pose.position.z << "m" << endl;
+            break;
         default:
         {
             cout << "Not position" << endl;
             exit(0);
         }
     }
-
+#endif /* HITL */
     ros::init(argc, argv, "offboard_node");
     ros::NodeHandle nh;
 
     ros::Subscriber state_sub = nh.subscribe<mavros_msgs::State>
-            ("mavros/state", 10, state_cb);
+        ("mavros/state", 10, state_cb);
     ros::Subscriber imu_sub = nh.subscribe<sensor_msgs::Imu>
-            ("/mavros/imu/data",10,imuCallback);
+        ("/mavros/imu/data",10,imuCallback);
     ros::Subscriber local_position_sub = nh.subscribe<geometry_msgs::PoseStamped>
-            ("/mavros/local_position/pose",100,mavrosPose_Callback);
+        ("/mavros/local_position/pose",100,mavrosPose_Callback);
     ros::Publisher local_pos_pub = nh.advertise<geometry_msgs::PoseStamped>
-            ("mavros/setpoint_position/local", 10);
+        ("mavros/setpoint_position/local", 10);
     ros::ServiceClient arming_client = nh.serviceClient<mavros_msgs::CommandBool>
-            ("mavros/cmd/arming");
+        ("mavros/cmd/arming");
     ros::ServiceClient set_mode_client = nh.serviceClient<mavros_msgs::SetMode>
-            ("mavros/set_mode");
-    // ros::Subscriber pose_sub = nh.subscribe("/tf_list", 10, get_params_cb);
+        ("mavros/set_mode");
+    ros::Publisher velocity_pub   = nh.advertise <geometry_msgs::TwistStamped>
+        ("/mavros/setpoint_velocity/cmd_vel", 30 );
 
-    ros::Subscriber position_target_sub = nh.subscribe<geometry_msgs::PoseStamped>("cmd/set_pose/position1",30,set_target_position_callback);
-    // ros::Subscriber yaw_target_sub = nh.subscribe<std_msgs::Float32>("cmd/set_pose/orientation",10,set_target_yaw_callback);
-    ros::Subscriber custom_activity_sub = nh.subscribe<std_msgs::String>("cmd/set_activity/type",10,custom_activity_callback);
-    ros::Publisher velocity_pub   = nh.advertise <geometry_msgs::TwistStamped>("/mavros/setpoint_velocity/cmd_vel", 30 );
+    ros::Subscriber position_target_sub = nh.subscribe<geometry_msgs::PoseStamped>
+        ("cmd/set_pose/position1",30,set_target_position_callback);
+    // ros::Subscriber yaw_target_sub = nh.subscribe<std_msgs::Float32>
+        // ("cmd/set_pose/orientation",10,set_target_yaw_callback);
+    ros::Subscriber both_mode_sub = nh.subscribe<std_msgs::Int16>
+        ("cmd/set_mode/mode",10,both_mode_callback);
+    ros::Subscriber custom_activity_sub = nh.subscribe<std_msgs::String>
+        ("cmd/set_activity/type",10,custom_activity_callback);
+    // ros::Subscriber pose_sub = nh.subscribe
+        // ("/tf_list", 10, get_params_cb);
 
     ros::Rate rate(20.0);
-    if(mode_controll == PID)
+    if(mode_controll == PID || mode_controll == BOTH)
     {
         pid_x.setOutputLimits(-0.5, 1.0);
         pid_y.setOutputLimits(-0.5, 1.0);
@@ -330,7 +361,7 @@ int main(int argc, char **argv)
         baygio = time(0);
         ltime = localtime(&baygio);
         outfile0 << PRECISION(vlocal_pose.pose.position.x) << " " << PRECISION(vlocal_pose.pose.position.y) << " " << PRECISION(vlocal_pose.pose.position.z) << " " << ltime->tm_min << " " << ltime->tm_sec << endl;
-        if(mode_controll == PID)
+        if(mode_controll == PID || mode_controll == BOTH)
         {
             output_x = pid_x.getOutput(PRECISION(vlocal_pose.pose.position.x), pose.pose.position.x);
             output_y = pid_y.getOutput(PRECISION(vlocal_pose.pose.position.y), pose.pose.position.y);
@@ -347,6 +378,7 @@ int main(int argc, char **argv)
             var_velocity.twist.linear.y = output_y;
             var_velocity.twist.linear.z = output_z;
         }
+
         switch(mode_controll)
         {
             case LOCAL:
@@ -354,6 +386,22 @@ int main(int argc, char **argv)
                 break;
             case PID:
                 velocity_pub.publish(var_velocity);
+                break;
+            case BOTH:
+                if ( mode_select == LOCAL)
+                {
+                    local_pos_pub.publish(pose);
+                    cout << "local" << endl;
+                }
+                else if ( mode_select == PID)
+                {
+                    cout << "PID" << endl;
+                    velocity_pub.publish(var_velocity);
+                }
+                else
+                {
+
+                }
                 break;
             default:
                 {

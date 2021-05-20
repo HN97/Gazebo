@@ -28,6 +28,7 @@
 #define PRECISION(x)    round(x * 100) / 100
 #define DISTANCE        0.3
 #define NSTEP           20
+#define PI              3.14159265
 /******************************************************************************* 
 
  *                                Namespace
@@ -48,6 +49,7 @@ ros::Publisher custom_activity_pub;
 
  ******************************************************************************/
 static int number_check          = 0;
+bool semaphore_b = true;
 static bool LOCK_LAND            = false;
 static bool vLand                = false;
 static bool vend                 = false;
@@ -56,10 +58,11 @@ time_t baygio                    = time(0);
 tm *ltime                        = localtime(&baygio);
 static double var_offset_pose[3] = {0.0, 0.0, 0.0};
 static char var_active_status[20];
-static double x, y, z, xdistance;
+static double x, y, z;
+static double x_ = 0, y_ = 0, z_ = 0;
 ofstream outfile0, outfile1, outfile2;
 Matrix3f R, cv_rotation, cam2imu_rotation;
-Vector3f positionbe, position_cam, positionaf, offset_marker;
+Vector3f positionbe, position_cam, positionaf, point_change, positionaf_change;
 geometry_msgs::PoseStamped pose;
 geometry_msgs::PoseStamped vlocal_pose;
 /******************************************************************************* 
@@ -75,6 +78,38 @@ KalmanPID kalman_z = KalmanPID(0, 5, 1.5);
  *                                  Code 
 
  ******************************************************************************/ 
+bool semaphore_give(bool &sem)
+{
+    if(sem == false)
+    {
+        sem = true;
+    }
+    else
+    {
+        return false;
+    }
+
+    return true;
+}
+
+/*
+
+ */
+
+bool semaphore_take(bool &sem)
+{
+    if(sem == true)
+    {
+        sem = false;
+    }
+    else
+    {
+        return false;
+    }
+
+    return true;
+}
+
 void turn_off_motors(void)
 {
     std_msgs::String msg;
@@ -181,24 +216,65 @@ static void get_params_cb(const tf2_msgs::TFMessage::ConstPtr& msg)
             
         }
 
-        Aruco_check_Area(position_cam);
+        // Aruco_check_Area(position_cam);
 
-        radius = (float)sqrt(pow(positionaf[0],2) + pow(positionaf[1],2));
-        xdistance = radius*vlocal_pose.pose.position.z/10;
-        if (radius <= DISTANCE)
+        double alpha, OR, A1E, Y2, X2, Z2;
+        OR = (float)sqrt(pow(positionbe[0],2) + pow(positionbe[1],2));
+        alpha = atan (OR/positionbe[2]) * 180 / PI;
+        A1E = (OR *( abs(positionbe[2]) - 10 )) / abs(positionbe[2]);
+        point_change[1] = (positionbe[1] * A1E) / OR;
+        point_change[0] = (positionbe[0] * A1E) / OR;
+        point_change[2] = positionbe[2] + 10.0;
+        if (20 >= abs(alpha) && vlocal_pose.pose.position.z > 11)
         {
-            /* maintain a llatitude of 2 m in z axis */
-            // pose.pose.position.x = x;
-            // pose.pose.position.y = y;
-            if (0.6 < vlocal_pose.pose.position.z)
+            positionaf_change = R*point_change;
+            x_ = positionaf_change[0]+vlocal_pose.pose.position.x;
+            y_ = positionaf_change[1]+vlocal_pose.pose.position.y;
+            z_ = positionaf_change[2]+vlocal_pose.pose.position.z;
+            x_ = (int)(x_*100);
+            y_ = (int)(y_*100);
+            z_ = (int)(z_*100);
+            x_ = x_/100;
+            y_ = y_/100;
+            z_ = z_/100;
+            cout <<"----------------------------" << endl;
+            cout << positionaf_change[0]<< "--" << positionaf_change[1] << "--"<< positionaf_change[2] << endl;
+            cout << x_<< "--"<< y_<< "--"<< z_<< endl;
+            cout <<"----------------------------" << endl;
+            pose.pose.position.x = x_;
+            pose.pose.position.y = y_;
+            pose.pose.position.z = vlocal_pose.pose.position.z -2;
+            // if (true == semaphore_take(semaphore_b))
+            // {
+                // pose.pose.position.x = vlocal_pose.pose.position.x + 0.2;
+                // pose.pose.position.y = vlocal_pose.pose.position.y + 0.2;
+                // temp = abs(tan(10 * PI / 180.0) * 0.5);
+                // OE = abs(radius - temp);
+                // OF = abs(positionbe[0]*OE / radius);
+                // OD = (float)sqrt(pow(OE,2) - pow(OF,2));
+                // cout << "off set: " << OE <<" "<< OD << " " <<OF<< endl;
+                // pose.pose.position.z = vlocal_pose.pose.position.z - 2;
+
+            // }
+
+            // if (pose.pose.position.z >= vlocal_pose.pose.position.z - 0.5)
+            // {
+            //     semaphore_give(semaphore_b);
+            // }
+        }
+        else if (10 >= abs(alpha) && vlocal_pose.pose.position.z <= 11)
+        {
+            pose.pose.position.x = x;
+            pose.pose.position.y = y;
+            if (vlocal_pose.pose.position.z > 0.5)
             {
-                if (0.5 >= pose.pose.position.z)
+                if (pose.pose.position.z <= 0.3)
                 {
-                    pose.pose.position.z = 0.5;
+                    pose.pose.position.z = 0.3;
                 }
                 else
                 {
-                    pose.pose.position.z = vlocal_pose.pose.position.z - 2;
+                    pose.pose.position.z = vlocal_pose.pose.position.z - 2.0;
                     // pose.pose.position.z = abs(z);
                 }
             }
@@ -229,7 +305,7 @@ static void get_params_cb(const tf2_msgs::TFMessage::ConstPtr& msg)
 
         cout<<"Aruco2Cam  : " << PRECISION(position_cam[0]) <<'\t'<< PRECISION(position_cam[1]) << '\t' << PRECISION(position_cam[2]) << endl;
         cout<<"Aruco2Drone: " << PRECISION(positionbe[0]) <<'\t'<< PRECISION(positionbe[1]) << '\t' << PRECISION(positionbe[2]) << endl;
-        cout<<"Aruco2NEU  : " << PRECISION(x) <<'\t'<< PRECISION(y) << '\t' << PRECISION(z) << endl;
+        cout<<"Aruco2NEU  : " << PRECISION(x_) <<'\t'<< PRECISION(y_) << '\t' << PRECISION(z_) << endl;
         cout<<"Drone      : " << PRECISION(vlocal_pose.pose.position.x) << "\t" << PRECISION(vlocal_pose.pose.position.y) << "\t" << PRECISION(vlocal_pose.pose.position.z) << endl;
         cout << "===================================================" << endl;
     }
