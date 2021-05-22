@@ -19,6 +19,7 @@
 #include "std_msgs/String.h"
 #include "std_msgs/Float32.h"
 #include "Kalmanfiler.h"
+#include <csignal>
 
 /******************************************************************************* 
 
@@ -78,6 +79,14 @@ KalmanPID kalman_z = KalmanPID(0, 5, 1.5);
  *                                  Code 
 
  ******************************************************************************/ 
+
+/**
+ * @brief Simulation semaphore machine
+ * 
+ * @param 
+ *
+ * @return 
+ */
 bool semaphore_give(bool &sem)
 {
     if(sem == false)
@@ -166,6 +175,13 @@ int vbegin    = 2;
 float minutes = 0;
 float seconds = 0;
 
+/**
+ * @brief 
+ * 
+ * @param 
+ *
+ * @return 
+ */
 static void get_params_cb(const tf2_msgs::TFMessage::ConstPtr& msg)
 {
     float radius;
@@ -243,7 +259,7 @@ static void get_params_cb(const tf2_msgs::TFMessage::ConstPtr& msg)
             cout <<"----------------------------" << endl;
             pose.pose.position.x = x_;
             pose.pose.position.y = y_;
-            pose.pose.position.z = vlocal_pose.pose.position.z -2;
+            pose.pose.position.z = vlocal_pose.pose.position.z - 2;
             // if (true == semaphore_take(semaphore_b))
             // {
                 // pose.pose.position.x = vlocal_pose.pose.position.x + 0.2;
@@ -297,11 +313,6 @@ static void get_params_cb(const tf2_msgs::TFMessage::ConstPtr& msg)
             LOCK = 1;
             number_check = 0;
         }
-        baygio = time(0);
-        ltime = localtime(&baygio);
-        outfile0 << vlocal_pose.pose.position.x << " " << vlocal_pose.pose.position.y << " " << vlocal_pose.pose.position.z << ' ' << ltime->tm_min << " " << ltime->tm_sec << endl;
-        outfile1 << positionbe[0] <<' '<< positionbe[1] << ' ' << positionbe[2] << ' ' << ltime->tm_min << " " << ltime->tm_sec << endl;
-        outfile2 << x <<' '<< y << ' ' << z << ' '<< ltime->tm_min << " " << ltime->tm_sec << endl;
 
         cout<<"Aruco2Cam  : " << PRECISION(position_cam[0]) <<'\t'<< PRECISION(position_cam[1]) << '\t' << PRECISION(position_cam[2]) << endl;
         cout<<"Aruco2Drone: " << PRECISION(positionbe[0]) <<'\t'<< PRECISION(positionbe[1]) << '\t' << PRECISION(positionbe[2]) << endl;
@@ -309,6 +320,19 @@ static void get_params_cb(const tf2_msgs::TFMessage::ConstPtr& msg)
         cout<<"Drone      : " << PRECISION(vlocal_pose.pose.position.x) << "\t" << PRECISION(vlocal_pose.pose.position.y) << "\t" << PRECISION(vlocal_pose.pose.position.z) << endl;
         cout << "===================================================" << endl;
     }
+}
+
+void sig_handler( int sig )
+{
+    cout << "\nInterrupt signal (" << sig << ") received.\n";
+    std_msgs::String msgs;
+    std::stringstream ss;
+    ss << "LAND";
+    msgs.data = ss.str();
+    cout << "Give mode AUTO.LAND" << endl;
+    custom_activity_pub.publish(msgs);
+
+    exit(sig);
 }
 
 void local_pose_callback(const geometry_msgs::PoseStamped::ConstPtr& msg)
@@ -320,19 +344,8 @@ void local_pose_callback(const geometry_msgs::PoseStamped::ConstPtr& msg)
 
 int main(int argc, char **argv)
 {
-
+    signal(SIGTSTP, sig_handler);
     int sizeof_queue     = 10;
-    char path[250];
-    char path_1[250];
-    char path_2[250];
-    char path_3[250];
-    getcwd(path, sizeof(path));
-    strcpy(path_1, path);
-    strcpy(path_2, path);
-    strcpy(path_3, path);
-    strcat(path_1, "/Tool/gen_report/gps.txt");
-    strcat(path_2, "/Tool/gen_report/Aruco2Drone.txt");
-    strcat(path_3, "/Tool/gen_report/Aruco2NEU.txt");
     kalman_x.setMeasurement(0.05);
     kalman_y.setMeasurement(0.05);
 
@@ -344,12 +357,6 @@ int main(int argc, char **argv)
     cout << "Thoi gian: "<< ltime->tm_hour << ":";
     cout << ltime->tm_min << ":";
     cout << ltime->tm_sec << endl;
-    outfile0.open(path_1);
-    outfile1.open(path_2);
-    outfile2.open(path_3);
-    outfile0 << "x " << "y " << "z " << "m " << "s" << endl;
-    outfile1 << "x " << "y " << "z " << "m " << "s" << endl;
-    outfile2 << "x " << "y " << "z " << "m " << "s" << endl;
 
     ros::init(argc, argv, "subpose_node");
     ros::NodeHandle n;
@@ -394,9 +401,6 @@ int main(int argc, char **argv)
             cout << "| Total :" << ltime->tm_min - minutes <<" minute "<< ltime->tm_sec - seconds << " Second" << endl;
             cout << "========================================"<< endl;
             cout<<"Drone : x = " << vlocal_pose.pose.position.x << " y = " << vlocal_pose.pose.position.y << " z = " << vlocal_pose.pose.position.z << endl;
-            outfile0.close();
-            outfile1.close();
-            outfile2.close();
             exit(0);
         }
         if (vend == false)

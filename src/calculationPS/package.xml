@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package format="2">
-    <name>controlps</name>
+    <name>calculationps</name>
     <version>0.1.1</version>
     <description>The subscribe package.</description>
     <author email="abc@gmail.com">nam97</author>

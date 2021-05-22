@@ -36,11 +36,11 @@
  *                               Definitions 
 
  ******************************************************************************/ 
-#define SSTR(x)         static_cast<std::ostringstream&>(std::ostringstream() << std::dec << x).str()
-#define ROUND2(x)       std::round(x * 100) / 100
-#define ROUND3(x)       std::round(x * 1000) / 1000
-#define IDLOW              23
-#define IDLARGE            25
+#define SSTR(x)    static_cast<std::ostringstream&>(std::ostringstream() << std::dec << x).str()
+#define ROUND2(x)    std::round(x * 100) / 100
+#define ROUND3(x)    std::round(x * 1000) / 1000
+#define IDLOW    23
+#define IDLARGE    25
 #define SWITCH_ALTITUDE    3
 /******************************************************************************* 
 
@@ -57,6 +57,7 @@ using namespace cv;
  ******************************************************************************/ 
 /* Publisher */
 image_transport::Publisher result_img_pub_;
+image_transport::Publisher read_frame_pub;
 image_geometry::PinholeCameraModel camera_model;
 ros::Publisher tf_list_pub_;
 /******************************************************************************* 
@@ -67,9 +68,9 @@ ros::Publisher tf_list_pub_;
 /* Define global variables */
 bool camera_model_computed = false;
 bool show_detections;
-bool enable_blur = true;
-int blur_window_size = 7;
-int image_fps = 14;
+bool enable_blur;
+int blur_window_size;
+int image_fps;
 int image_width = 1920;
 int image_height = 1080;
 /* Offset bwt the center of markers in coordinate marker*/
@@ -85,6 +86,10 @@ std::ostringstream vector_to_marker;
 uint8_t switch_ID      = 25;
 uint16_t halfpX = image_width/2;
 uint16_t halfpY = image_height/2;
+
+VideoCapture cap;
+int deviceID = 0;             // 0 = open default camera
+int apiID = cv::CAP_ANY;
 
 /******************************************************************************* 
 
@@ -352,6 +357,13 @@ void callback(const ImageConstPtr &image_msg)
 
 int main(int argc, char **argv)
 {
+
+    // cap.open(deviceID);
+    // if (!cap.isOpened()) {
+    // cerr << "ERROR! Unable to open camera\n";
+    // return -1;
+    // }
+
     map<string, aruco::PREDEFINED_DICTIONARY_NAME> dictionary_names;
     dictionary_names.insert(pair<string, aruco::PREDEFINED_DICTIONARY_NAME>("DICT_4X4_50", aruco::DICT_4X4_50));
     dictionary_names.insert(pair<string, aruco::PREDEFINED_DICTIONARY_NAME>("DICT_4X4_100", aruco::DICT_4X4_100));
@@ -379,35 +391,42 @@ int main(int argc, char **argv)
     ros::NodeHandle nh("~");
     string rgb_topic, rgb_info_topic, dictionary_name;
 
-    nh.param("camera", rgb_topic, string("/camera/color/image_raw"));
-    nh.param("camera_info", rgb_info_topic, string("/camera/color/camera_info"));
-    nh.param("show_detections", show_detections, true);
-    nh.param("tf_prefix", marker_tf_prefix, string("marker"));
-    nh.param("marker_size", marker_size, 0.5f);
-    nh.param("enable_blur", enable_blur, true);
-    nh.param("blur_window_size", blur_window_size, 7);
-    nh.param("image_fps", image_fps, 14);
-    nh.param("image_width", image_width, 1920);
-    nh.param("image_height", image_height, 1080);
+    nh.getParam("camera", rgb_topic);
+    nh.getParam("camera_info", rgb_info_topic);
+    nh.getParam("marker_size", marker_size);
+    nh.getParam("image_fps", image_fps);
+    nh.getParam("image_width", image_width);
+    nh.getParam("image_height", image_height);
+    nh.getParam("tf_prefix", marker_tf_prefix);
+    nh.getParam("enable_blur", enable_blur);
+    nh.getParam("blur_window_size", blur_window_size);
+    nh.getParam("show_detections", show_detections);
 
     detector_params = aruco::DetectorParameters::create();
     detector_params->cornerRefinementMethod = aruco::CORNER_REFINE_SUBPIX;
-    nh.param("dictionary_name", dictionary_name, string("DICT_6X6_250"));   /* default DICT_6X6_250 */
-    nh.param("aruco_adaptiveThreshWinSizeStep", detector_params->adaptiveThreshWinSizeStep, 4);
+    nh.getParam("dictionary_name", dictionary_name);
+    // nh.param("aruco_adaptiveThreshWinSizeStep", detector_params->adaptiveThreshWinSizeStep, 4);
     /* Configure ARUCO marker detector */
     dictionary = aruco::getPredefinedDictionary(dictionary_names[dictionary_name]);
     ROS_DEBUG("%f", marker_size);
-    /* gazebo plugin */
-    ros::Subscriber rgb_sub = nh.subscribe("/camera/color/image_raw", queue_size, callback);
-    ros::Subscriber rgb_info_sub = nh.subscribe("/camera/color/camera_info", queue_size, callback_camera_info);
     /* camera */
-    // ros::Subscriber rgb_sub = nh.subscribe(rgb_topic.c_str(), queue_size, callback);
-    // ros::Subscriber rgb_info_sub = nh.subscribe(rgb_info_topic.c_str(), queue_size, callback_camera_info);
+    ros::Subscriber rgb_sub = nh.subscribe(rgb_topic.c_str(), queue_size, callback);
+    ros::Subscriber rgb_info_sub = nh.subscribe(rgb_info_topic.c_str(), queue_size, callback_camera_info);
     // ros::Subscriber parameter_sub = nh.subscribe("/update_params", queue_size, update_params_cb);
     /*Publisher:*/
     image_transport::ImageTransport it(nh);
     result_img_pub_ = it.advertise("/result_img", 10);
+    read_frame_pub  = it.advertise("/camera/color/image_raw", 10);
     tf_list_pub_    = nh.advertise<tf2_msgs::TFMessage>("/tf_list", 1000);
     ros::spin();
+    // while(1)
+    // {
+    //     Mat frame;
+    //     cap >> frame;
+    //     if( frame.empty() ) break; // end of video stream
+    //     read_frame_pub.publish(cv_bridge::CvImage(std_msgs::Header(), "bgr8", frame).toImageMsg());
+    //       imshow("this is you, smile! :)", frame);
+    //     ros::spin();
+    // }
     return 0;
 }

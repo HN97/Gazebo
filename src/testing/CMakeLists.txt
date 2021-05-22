@@ -22,7 +22,8 @@ catkin_install_python(PROGRAMS
 ## Build ##
 ###########
 
-add_definitions(-DLOCAL -DPID)
+# add_definitions(-DLOCAL -DPID)
+add_definitions(-DLOCAL)
 
 include_directories(
         ${catkin_INCLUDE_DIRS} ../../kalman_filter

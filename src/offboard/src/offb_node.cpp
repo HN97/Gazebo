@@ -151,15 +151,19 @@ void set_target_position_callback(const geometry_msgs::PoseStamped::ConstPtr& ms
 void both_mode_callback(const std_msgs::Int16::ConstPtr& msg)
 {
     mode_select = msg->data;
-    cout << mode_select << endl;
 }
 
 void custom_activity_callback(const std_msgs::String::ConstPtr& msg)
 {
     strcpy(var_active_status, msg->data.c_str());
-    cout << var_active_status << endl;
 }
-
+/**
+ * @brief
+ * 
+ * @param 
+ *
+ * @return 
+ */
 void signal_callback_handler(int signum)
 {
     cout << "\n======================================="<< endl;
@@ -391,11 +395,9 @@ int main(int argc, char **argv)
                 if ( mode_select == LOCAL)
                 {
                     local_pos_pub.publish(pose);
-                    cout << "local" << endl;
                 }
                 else if ( mode_select == PID)
                 {
-                    cout << "PID" << endl;
                     velocity_pub.publish(var_velocity);
                 }
                 else

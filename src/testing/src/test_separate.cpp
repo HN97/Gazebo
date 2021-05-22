@@ -86,7 +86,7 @@ bool semaphore_give(bool &sem)
     return true;
 }
 
-/*
+/**
 
  */
 
@@ -131,7 +131,7 @@ void mavrosPose_Callback(const geometry_msgs::PoseStamped::ConstPtr &msg)
 }
 
 
-/*
+/**
 * @b
 *
 *
@@ -166,7 +166,7 @@ int main(int argc, char **argv)
     cout << "PID Controller"<< endl;
     mode.data = 2;
 #else
-    cout << "LOCAL Controller"<< endl;
+    cout << "\x1B[93mLOCAL Controller\033[0m"<< endl;
     mode.data = 1;
 #endif
     system("echo -n \"1: Sending pose X=0 | Y=0 | Z=5 ...\"");
@@ -193,7 +193,7 @@ int main(int argc, char **argv)
     cout << "PID Controller"<< endl;
     mode.data = 2;
 #else
-    cout << "LOCAL Controller"<< endl;
+    cout << "\x1B[93mLOCAL Controller\033[0m"<< endl;
     mode.data = 1;
 #endif
     system("echo -n \"2: Sending pose X=3 | Y=0 | Z=5 ...\"");
@@ -221,7 +221,7 @@ int main(int argc, char **argv)
     cout << "PID Controller"<< endl;
     mode.data = 2;
 #else
-    cout << "LOCAL Controller"<< endl;
+    cout << "\x1B[93mLOCAL Controller\033[0m"<< endl;
     mode.data = 1;
 #endif
     system("echo -n \"3: Sending pose X=3 | Y=3 | Z=5 ...\"");
@@ -248,7 +248,7 @@ int main(int argc, char **argv)
     cout << "PID Controller"<< endl;
     mode.data = 1;
 #else
-    cout << "LOCAL Controller"<< endl;
+    cout << "\x1B[93mLOCAL Controller\033[0m"<< endl;
     mode.data = 1;
 #endif
     system("echo -n \"4: Sending pose X=0 | Y=0 | Z=2.5 ...\"");
@@ -296,10 +296,8 @@ int main(int argc, char **argv)
     while(current_state.armed == true);
     system("echo \"\\r\u2714 Land !!!    \"");
     cout <<"\x1B[36m-------------------------------------------------------\033[0m"<< endl;
-    cout << "\x1B[34mCompleted\033[0m"<<endl;
+    cout <<"\x1B[34mCompleted\033[0m"<<endl;
     cout <<"\x1B[36m-------------------------------------------------------\033[0m"<< endl;
-    cout << "Total: 4" << endl;
-    // cout << "\x1B[93mPass\033[0m: " << unsigned(xstep) << "\t\t" << "\x1B[31mFailed\033[0m: "<< 4 - xstep << endl;
 
 
     ros::spinOnce();
