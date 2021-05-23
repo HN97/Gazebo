@@ -26,7 +26,7 @@ include_directories(
         ${catkin_INCLUDE_DIRS} ../../kalman_filter
 )
 file(GLOB SOURCES src/*.cpp ../../kalman_filter/*.cpp)
-add_executable(${PROJECT_NAME}_node ${SOURCES} ../../kalman_filter/Kalmanfiler.cpp)
+add_executable(${PROJECT_NAME}_node ${SOURCES})
 target_link_libraries(${PROJECT_NAME}_node
         ${catkin_LIBRARIES}
         )

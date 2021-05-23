@@ -18,7 +18,7 @@
 #include <sensor_msgs/Imu.h>
 #include "std_msgs/String.h"
 #include "std_msgs/Float32.h"
-#include "Kalmanfiler.h"
+#include "Kalmanfilter.h"
 #include <csignal>
 
 /******************************************************************************* 
@@ -28,8 +28,11 @@
  ******************************************************************************/ 
 #define PRECISION(x)    round(x * 100) / 100
 #define DISTANCE        0.3
-#define NSTEP           20
+#define NSTEP           40
 #define PI              3.14159265
+#define MCHANGE         7
+#define IncreaseHeightNotDetect     1
+#define MaxRepeatDetections         2
 /******************************************************************************* 
 
  *                                Namespace
@@ -49,6 +52,8 @@ ros::Publisher custom_activity_pub;
  *                                 Variables 
 
  ******************************************************************************/
+int detectfailedrepeat = 0;
+bool active_2s_ago = true;
 static int number_check          = 0;
 bool semaphore_b = true;
 static bool LOCK_LAND            = false;
@@ -66,14 +71,20 @@ Matrix3f R, cv_rotation, cam2imu_rotation;
 Vector3f positionbe, position_cam, positionaf, point_change, positionaf_change;
 geometry_msgs::PoseStamped pose;
 geometry_msgs::PoseStamped vlocal_pose;
+int vbegin    = 2;
+float minutes = 0;
+float seconds = 0;
+ros::Time begin_request, reset_request;
+
 /******************************************************************************* 
 
  *                                  Object
 
  ******************************************************************************/
-KalmanPID kalman_x = KalmanPID(0, 5, 1.5);
-KalmanPID kalman_y = KalmanPID(0, 5, 1.5);
-KalmanPID kalman_z = KalmanPID(0, 5, 1.5);
+KalmanPID kalman_x = KalmanPID(0, 2, 0.5);
+KalmanPID kalman_y = KalmanPID(0, 2, 0.5);
+KalmanPID kalman_z = KalmanPID(0, 2, 0.5);
+
 /******************************************************************************* 
 
  *                                  Code 
@@ -171,10 +182,6 @@ void imuCallback(const sensor_msgs::Imu::ConstPtr &msg)
     yaw   = yaw*(180/3.14);;
 }
 
-int vbegin    = 2;
-float minutes = 0;
-float seconds = 0;
-
 /**
  * @brief 
  * 
@@ -184,6 +191,12 @@ float seconds = 0;
  */
 static void get_params_cb(const tf2_msgs::TFMessage::ConstPtr& msg)
 {
+    begin_request = ros::Time::now();
+    active_2s_ago = true;
+    if( ros::Time::now() - reset_request > ros::Duration(3.0) )
+    {
+        detectfailedrepeat = 0;
+    }
     float radius;
     if (LOCK_LAND == false)
     {
@@ -215,6 +228,14 @@ static void get_params_cb(const tf2_msgs::TFMessage::ConstPtr& msg)
         /* Drone ----> NEU */
         positionaf = R*positionbe;
         /* update the position */
+        double alpha, OR, A1E, Y2, X2, Z2;
+        OR = (float)sqrt(pow(positionbe[0],2) + pow(positionbe[1],2));
+        alpha = atan (OR/positionbe[2]) * 180 / PI;
+        A1E = (OR *( abs(positionbe[2]) - MCHANGE )) / abs(positionbe[2]);
+        point_change[1] = (positionbe[1] * A1E) / OR;
+        point_change[0] = (positionbe[0] * A1E) / OR;
+        point_change[2] = positionbe[2] + MCHANGE;
+        positionaf_change = R*point_change;
         if (LOCK > 0)
         {
             x = positionaf[0]+vlocal_pose.pose.position.x;
@@ -230,20 +251,6 @@ static void get_params_cb(const tf2_msgs::TFMessage::ConstPtr& msg)
             // x = kalman_x.getValueKF(x);
             // y = kalman_y.getValueKF(y);
             
-        }
-
-        // Aruco_check_Area(position_cam);
-
-        double alpha, OR, A1E, Y2, X2, Z2;
-        OR = (float)sqrt(pow(positionbe[0],2) + pow(positionbe[1],2));
-        alpha = atan (OR/positionbe[2]) * 180 / PI;
-        A1E = (OR *( abs(positionbe[2]) - 10 )) / abs(positionbe[2]);
-        point_change[1] = (positionbe[1] * A1E) / OR;
-        point_change[0] = (positionbe[0] * A1E) / OR;
-        point_change[2] = positionbe[2] + 10.0;
-        if (20 >= abs(alpha) && vlocal_pose.pose.position.z > 11)
-        {
-            positionaf_change = R*point_change;
             x_ = positionaf_change[0]+vlocal_pose.pose.position.x;
             y_ = positionaf_change[1]+vlocal_pose.pose.position.y;
             z_ = positionaf_change[2]+vlocal_pose.pose.position.z;
@@ -253,40 +260,32 @@ static void get_params_cb(const tf2_msgs::TFMessage::ConstPtr& msg)
             x_ = x_/100;
             y_ = y_/100;
             z_ = z_/100;
+            x_ = kalman_x.getValueKF(x_);
+            y_ = kalman_y.getValueKF(y_);
+            z_ = kalman_z.getValueKF(z_);
+        }
+
+        // Aruco_check_Area(position_cam);
+
+        if (20 >= abs(alpha) && vlocal_pose.pose.position.z > (MCHANGE + 1))
+        {
             cout <<"----------------------------" << endl;
             cout << positionaf_change[0]<< "--" << positionaf_change[1] << "--"<< positionaf_change[2] << endl;
             cout << x_<< "--"<< y_<< "--"<< z_<< endl;
             cout <<"----------------------------" << endl;
             pose.pose.position.x = x_;
             pose.pose.position.y = y_;
-            pose.pose.position.z = vlocal_pose.pose.position.z - 2;
-            // if (true == semaphore_take(semaphore_b))
-            // {
-                // pose.pose.position.x = vlocal_pose.pose.position.x + 0.2;
-                // pose.pose.position.y = vlocal_pose.pose.position.y + 0.2;
-                // temp = abs(tan(10 * PI / 180.0) * 0.5);
-                // OE = abs(radius - temp);
-                // OF = abs(positionbe[0]*OE / radius);
-                // OD = (float)sqrt(pow(OE,2) - pow(OF,2));
-                // cout << "off set: " << OE <<" "<< OD << " " <<OF<< endl;
-                // pose.pose.position.z = vlocal_pose.pose.position.z - 2;
-
-            // }
-
-            // if (pose.pose.position.z >= vlocal_pose.pose.position.z - 0.5)
-            // {
-            //     semaphore_give(semaphore_b);
-            // }
+            pose.pose.position.z = MCHANGE;
         }
-        else if (10 >= abs(alpha) && vlocal_pose.pose.position.z <= 11)
+        else if (10 >= abs(alpha) && vlocal_pose.pose.position.z <= (MCHANGE + 1))
         {
             pose.pose.position.x = x;
             pose.pose.position.y = y;
-            if (vlocal_pose.pose.position.z > 0.5)
+            if (vlocal_pose.pose.position.z > 0.7)
             {
-                if (pose.pose.position.z <= 0.3)
+                if (pose.pose.position.z <= 0.5)
                 {
-                    pose.pose.position.z = 0.3;
+                    pose.pose.position.z = 0.5;
                 }
                 else
                 {
@@ -342,19 +341,44 @@ void local_pose_callback(const geometry_msgs::PoseStamped::ConstPtr& msg)
     pose.pose.position.z= msg->pose.position.z;
 }
 
+void landing_start()
+{
+    LOCK_LAND = true;
+    vLand     = false;
+    vend      = true;
+    baygio    = time(0);
+    ltime     = localtime(&baygio);
+    turn_off_motors();
+    ROS_INFO("AUTO LANDING MODE is request");
+    cout << "\n\x1B[36m========================================\033[0m"<< endl;
+    cout << "\x1B[34m|-----------Time AUTO LANDING-----------\033[0m"<< endl;
+    cout << "\x1B[36m========================================\033[0m"<< endl;
+    cout << "| Start :" << minutes <<" : "<< seconds << endl;
+    cout << "| END   :" << ltime->tm_min <<" : "<< ltime->tm_sec << endl;
+    cout << "| Total :" << ltime->tm_min - minutes <<" minute "<< ltime->tm_sec - seconds << " Second" << endl;
+    cout << "========================================"<< endl;
+    cout<<"Drone : x = " << vlocal_pose.pose.position.x << " y = " << vlocal_pose.pose.position.y << " z = " << vlocal_pose.pose.position.z << endl;
+    exit(0);
+}
+
+bool AppearanceOfMarker()
+{
+    return true;
+}
 int main(int argc, char **argv)
 {
+    kalman_x.setMeasurement(0.5);
+    kalman_y.setMeasurement(0.5);
+    kalman_z.setMeasurement(0.5);
     signal(SIGTSTP, sig_handler);
     int sizeof_queue     = 10;
     kalman_x.setMeasurement(0.05);
     kalman_y.setMeasurement(0.05);
 
-
-    /*in cac thanh phan cua cau truc tm struct.*/
-    cout << "Nam: "<< 1900 + ltime->tm_year << endl;
-    cout << "Thang: "<< 1 + ltime->tm_mon<< endl;
-    cout << "Ngay: "<<  ltime->tm_mday << endl;
-    cout << "Thoi gian: "<< ltime->tm_hour << ":";
+    cout << "\x1B[93mYear\033[0m  : "<< 1900 + ltime->tm_year << endl;
+    cout << "\x1B[93mMonth\033[0m : "<< 1 + ltime->tm_mon<< endl;
+    cout << "\x1B[93mDay\033[0m   : "<< ltime->tm_mday << endl;
+    cout << "\x1B[93mTime\033[0m  : "<< ltime->tm_hour << ":";
     cout << ltime->tm_min << ":";
     cout << ltime->tm_sec << endl;
 
@@ -382,32 +406,37 @@ int main(int argc, char **argv)
         rate.sleep();
     }
     vbegin = 1;
+
+    begin_request = ros::Time::now();
     while(ros::ok())
     {
         if (vLand == true)
         {
-            LOCK_LAND = true;
-            vLand     = false;
-            vend      = true;
-            baygio    = time(0);
-            ltime     = localtime(&baygio);
-            turn_off_motors();
-            ROS_INFO("AUTO LANDING MODE is request");
-            cout << "\n========================================"<< endl;
-            cout << "|-----------Time AUTO LANDING-----------"<< endl;
-            cout << "========================================"<< endl;
-            cout << "| Start :" << minutes <<" : "<< seconds << endl;
-            cout << "| END   :" << ltime->tm_min <<" : "<< ltime->tm_sec << endl;
-            cout << "| Total :" << ltime->tm_min - minutes <<" minute "<< ltime->tm_sec - seconds << " Second" << endl;
-            cout << "========================================"<< endl;
-            cout<<"Drone : x = " << vlocal_pose.pose.position.x << " y = " << vlocal_pose.pose.position.y << " z = " << vlocal_pose.pose.position.z << endl;
-            exit(0);
+            landing_start();
         }
         if (vend == false)
         {
             local_pos_pub1.publish(pose);
         }
-
+        if( ros::Time::now() - begin_request > ros::Duration(2.0) )
+        {
+            if (active_2s_ago == true)
+            {
+                detectfailedrepeat ++;
+                active_2s_ago = false;
+            }
+            reset_request = ros::Time::now();
+            cout << "Can't detect Marker" << endl;
+            pose.pose.position.x = vlocal_pose.pose.position.x;
+            pose.pose.position.y = vlocal_pose.pose.position.y;
+            pose.pose.position.z = vlocal_pose.pose.position.z + IncreaseHeightNotDetect;
+            if( (ros::Time::now() - begin_request > ros::Duration(6.0)) || detectfailedrepeat == MaxRepeatDetections )
+            {
+                cout << "\x1B[31mTime Out or Maximum number of detection failed\033[0m\t" << detectfailedrepeat <<endl;
+                landing_start();
+            }
+            local_pos_pub1.publish(pose);
+        }
         ros::spinOnce();
         rate.sleep();
     }

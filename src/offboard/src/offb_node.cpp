@@ -66,8 +66,8 @@ ofstream outfile0;
 char path[250];
 static char var_active_status[20];
 int16_t mode_select = LOCAL;
-Matrix3f R;     /* declaring a 3*3 matrix */
-Vector3f var_offset_pose;     /* vectors to store position before and after */
+Matrix3f R;
+Vector3f var_offset_pose;
 Vector3f positionbe;
 Vector3f positionaf;
 mavros_msgs::State current_state;
@@ -75,9 +75,12 @@ geometry_msgs::PoseStamped pose;
 geometry_msgs::PoseStamped vlocal_pose;
 geometry_msgs::TwistStamped var_velocity;
 
-MiniPID pid_x = MiniPID(3.0, 0.2, 0.0, 0.15);
-MiniPID pid_y = MiniPID(3.0, 0.2, 0.0, 0.1);
-MiniPID pid_z = MiniPID(1.5, .012, 0.0, 0.1);
+// MiniPID pid_x = MiniPID(3.0, 0.2, 0.0, 0.15);
+// MiniPID pid_y = MiniPID(3.0, 0.2, 0.0, 0.1);
+// MiniPID pid_z = MiniPID(1.5, .012, 0.0, 0.1);
+MiniPID pid_x = MiniPID(0.4, 0.01, 0.0, 0.1);
+MiniPID pid_y = MiniPID(0.4, 0.01, 0.0, 0.1);
+MiniPID pid_z = MiniPID(0.4, 0.01, 0.0, 0.1);
 /******************************************************************************* 
 
  *                                  Code 
@@ -157,6 +160,7 @@ void custom_activity_callback(const std_msgs::String::ConstPtr& msg)
 {
     strcpy(var_active_status, msg->data.c_str());
 }
+
 /**
  * @brief
  * 
@@ -172,6 +176,14 @@ void signal_callback_handler(int signum)
     cout << path << endl;
     cout << "EXIT programme " << endl;
     exit(signum);
+}
+
+void init_pose()
+{
+    cin  >> pose.pose.position.x >> pose.pose.position.y >> pose.pose.position.z ;
+    cout << "\x1B[93mAxis x\033[0m : " << pose.pose.position.x << "m" << endl;
+    cout << "\x1B[93mAxis y\033[0m : " << pose.pose.position.y << "m" << endl;
+    cout << "\x1B[93mAxis z\033[0m : " << pose.pose.position.z << "m" << endl;
 }
 
 int main(int argc, char **argv)
@@ -198,7 +210,7 @@ int main(int argc, char **argv)
     cout << "\U0001F449 2: Control follow PID               |"<< endl;
     cout << "\U0001F449 3: Control follow Pose & PID        |"<< endl;
     cout << "======================================="<< endl;
-    cout << " ENTER Option: ";
+    cout << " \x1B[93m\u262D ENTER Option:\033[0m ";
 
     cin >> mode_controll;
 #ifdef HITL
@@ -212,26 +224,14 @@ int main(int argc, char **argv)
     {
         case LOCAL:
             cout << "PLEASE ENTER POSITION INIT Follow Local ENU frame [x y z]: ";
-            cin  >> pose.pose.position.x >> pose.pose.position.y >> pose.pose.position.z ;
-            cout << "Axis x : " << pose.pose.position.x  << "m" << endl;
-            cout << "Axis y : " << pose.pose.position.y << "m" << endl;
-            cout << "Axis z : " << pose.pose.position.z << "m" << endl;
+            init_pose();
             break;
         case PID:
             cout << "PID controller is chosen \nENTER Position Local ENU frame [x y z]: ";
-            cin  >> pose.pose.position.x >> pose.pose.position.y >> pose.pose.position.z ;
-            cout << "Time: " << endl;
-            cout << "Axis x : " << pose.pose.position.x  << "m" << endl;
-            cout << "Axis y : " << pose.pose.position.y << "m" << endl;
-            cout << "Axis z : " << pose.pose.position.z << "m" << endl;
-            break;
+            init_pose();
         case BOTH:
             cout << "PID controller is chosen \nENTER Position Local ENU frame [x y z]: ";
-            cin  >> pose.pose.position.x >> pose.pose.position.y >> pose.pose.position.z ;
-            cout << "Time: " << endl;
-            cout << "Axis x : " << pose.pose.position.x  << "m" << endl;
-            cout << "Axis y : " << pose.pose.position.y << "m" << endl;
-            cout << "Axis z : " << pose.pose.position.z << "m" << endl;
+            init_pose();
             break;
         default:
         {
@@ -272,12 +272,12 @@ int main(int argc, char **argv)
     ros::Rate rate(20.0);
     if(mode_controll == PID || mode_controll == BOTH)
     {
-        pid_x.setOutputLimits(-0.5, 1.0);
-        pid_y.setOutputLimits(-0.5, 1.0);
-        pid_z.setOutputLimits(-1.0, 2.0);
-        pid_x.setOutputRampRate(20);
-        pid_y.setOutputRampRate(20);
-        pid_z.setOutputRampRate(20);
+        pid_x.setOutputLimits(-0.5, 5.0);
+        pid_y.setOutputLimits(-0.5, 5.0);
+        pid_z.setOutputLimits(-1.0, 1.0);
+        pid_x.setOutputRampRate(10);
+        pid_y.setOutputRampRate(10);
+        pid_z.setOutputRampRate(10);
     }
     /* wait for FCU connection */
     while(ros::ok() && !current_state.connected)
@@ -291,7 +291,7 @@ int main(int argc, char **argv)
     {
         local_pos_pub.publish(pose);
         ros::spinOnce();
-        rate.sleep();
+        // rate.sleep();
     }
     // system("./scripts/gui_script.sh 0 0 \'init\'");
     // system("./scripts/gui_script.sh 30 0.75 \'configuration files\'");
