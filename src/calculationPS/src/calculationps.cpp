@@ -30,7 +30,7 @@
 #define DISTANCE        0.3
 #define NSTEP           40
 #define PI              3.14159265
-#define MCHANGE         7
+#define HeightChangeAngle           7
 #define IncreaseHeightNotDetect     1
 #define MaxRepeatDetections         2
 /******************************************************************************* 
@@ -211,18 +211,18 @@ static void get_params_cb(const tf2_msgs::TFMessage::ConstPtr& msg)
             vbegin = 0;
         }
 
-        double xq,yq,zq,wq;
-        Quaternionf quat;
+        // double xq,yq,zq,wq;
+        // Quaternionf quat;
         cam2imu_rotation << -0.0001 , -1 , 0 , -1 , 0 , 0 ,-0.0001 , 0 , -1;
 
         position_cam[0] = (msg->transforms[0].transform.translation.x);
         position_cam[1] = (msg->transforms[0].transform.translation.y);
         position_cam[2] = (msg->transforms[0].transform.translation.z);
 
-        xq = msg->transforms[0].transform.rotation.x;
-        yq = msg->transforms[0].transform.rotation.y;
-        zq = msg->transforms[0].transform.rotation.z;
-        wq = msg->transforms[0].transform.rotation.w;
+        // xq = msg->transforms[0].transform.rotation.x;
+        // yq = msg->transforms[0].transform.rotation.y;
+        // zq = msg->transforms[0].transform.rotation.z;
+        // wq = msg->transforms[0].transform.rotation.w;
         /* Aruco ----> Drone */
         positionbe = cam2imu_rotation*position_cam;
         /* Drone ----> NEU */
@@ -231,10 +231,10 @@ static void get_params_cb(const tf2_msgs::TFMessage::ConstPtr& msg)
         double alpha, OR, A1E, Y2, X2, Z2;
         OR = (float)sqrt(pow(positionbe[0],2) + pow(positionbe[1],2));
         alpha = atan (OR/positionbe[2]) * 180 / PI;
-        A1E = (OR *( abs(positionbe[2]) - MCHANGE )) / abs(positionbe[2]);
+        A1E = (OR *( abs(positionbe[2]) - HeightChangeAngle )) / abs(positionbe[2]);
         point_change[1] = (positionbe[1] * A1E) / OR;
         point_change[0] = (positionbe[0] * A1E) / OR;
-        point_change[2] = positionbe[2] + MCHANGE;
+        point_change[2] = positionbe[2] + HeightChangeAngle;
         positionaf_change = R*point_change;
         if (LOCK > 0)
         {
@@ -245,21 +245,18 @@ static void get_params_cb(const tf2_msgs::TFMessage::ConstPtr& msg)
             x = (int)(x*100);
             y = (int)(y*100);
             z = (int)(z*100);
-            x = x/100;
-            y = y/100;
-            z = z/100;
+            x = PRECISION(x);
+            y = PRECISION(y);
+            z = PRECISION(z);
             // x = kalman_x.getValueKF(x);
             // y = kalman_y.getValueKF(y);
             
             x_ = positionaf_change[0]+vlocal_pose.pose.position.x;
             y_ = positionaf_change[1]+vlocal_pose.pose.position.y;
             z_ = positionaf_change[2]+vlocal_pose.pose.position.z;
-            x_ = (int)(x_*100);
-            y_ = (int)(y_*100);
-            z_ = (int)(z_*100);
-            x_ = x_/100;
-            y_ = y_/100;
-            z_ = z_/100;
+            x_ = PRECISION(x_);
+            y_ = PRECISION(y_);
+            z_ = PRECISION(z_);
             x_ = kalman_x.getValueKF(x_);
             y_ = kalman_y.getValueKF(y_);
             z_ = kalman_z.getValueKF(z_);
@@ -267,7 +264,7 @@ static void get_params_cb(const tf2_msgs::TFMessage::ConstPtr& msg)
 
         // Aruco_check_Area(position_cam);
 
-        if (20 >= abs(alpha) && vlocal_pose.pose.position.z > (MCHANGE + 1))
+        if (20 >= abs(alpha) && vlocal_pose.pose.position.z > (HeightChangeAngle + 1))
         {
             cout <<"----------------------------" << endl;
             cout << positionaf_change[0]<< "--" << positionaf_change[1] << "--"<< positionaf_change[2] << endl;
@@ -275,9 +272,9 @@ static void get_params_cb(const tf2_msgs::TFMessage::ConstPtr& msg)
             cout <<"----------------------------" << endl;
             pose.pose.position.x = x_;
             pose.pose.position.y = y_;
-            pose.pose.position.z = MCHANGE;
+            pose.pose.position.z = HeightChangeAngle;
         }
-        else if (10 >= abs(alpha) && vlocal_pose.pose.position.z <= (MCHANGE + 1))
+        else if (10 >= abs(alpha) && vlocal_pose.pose.position.z <= (HeightChangeAngle + 1))
         {
             pose.pose.position.x = x;
             pose.pose.position.y = y;

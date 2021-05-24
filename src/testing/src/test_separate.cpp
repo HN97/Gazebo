@@ -155,12 +155,19 @@ int main(int argc, char **argv)
         ("cmd/set_activity/type",10);
     ros::Publisher both_mode_pub = test.advertise<std_msgs::Int16>
         ("cmd/set_mode/mode",10);
+    ros::Publisher tf_list_pub_  = test.advertise<tf2_msgs::TFMessage>
+        ("/tf_list", 100);
     ros::Rate rate(20.0);
     ros::spinOnce();
 /* GUI */
     cout <<"\n==============\U0001F4E1 Test controller =============="<< endl;
     cout << "\U0001F449 Control with local position"<< endl;
 
+/**
+ * @brief only use in case select control both pid and pose in off board 
+ *        if mode.data =2 , the controller follow PID . otherwise Pose
+ * @
+ */
 #ifdef PID
     cout << "PID Controller"<< endl;
     mode.data = 2;
@@ -193,7 +200,7 @@ int main(int argc, char **argv)
     mode.data = 2;
 #else
     cout << "\x1B[93mLOCAL Controller\033[0m"<< endl;
-    mode.data = 1;
+    mode.data = 2;
 #endif
     system("echo -n \"2: Sending pose X=3 | Y=0 | Z=5 ...\"");
     if (true == semaphore_take(semaphore_b))
@@ -221,7 +228,7 @@ int main(int argc, char **argv)
     mode.data = 2;
 #else
     cout << "\x1B[93mLOCAL Controller\033[0m"<< endl;
-    mode.data = 1;
+    mode.data = 2;
 #endif
     system("echo -n \"3: Sending pose X=3 | Y=3 | Z=5 ...\"");
     if (true == semaphore_take(semaphore_b))
@@ -245,7 +252,7 @@ int main(int argc, char **argv)
     }
 #ifdef PID
     cout << "PID Controller"<< endl;
-    mode.data = 1;
+    mode.data = 2;
 #else
     cout << "\x1B[93mLOCAL Controller\033[0m"<< endl;
     mode.data = 1;
@@ -253,7 +260,6 @@ int main(int argc, char **argv)
     system("echo -n \"4: Sending pose X=0 | Y=0 | Z=2.5 ...\"");
     if (true == semaphore_take(semaphore_b))
     {
-        mode.data = 1;
         both_mode_pub.publish(mode);
         pose.pose.position.x= 0;
         pose.pose.position.y= 0;
@@ -285,15 +291,69 @@ int main(int argc, char **argv)
     cout << "\x1B[34mSkiped\033[0m" << endl;
 #endif /* PID */
 
+    /*landing with pub fixed position */
+    cout << "\n\U0001F449 Test Landing"<< endl;
+    mode.data = 1;
+    system("echo -n \"4: Sending pose X=0 | Y=0 | Z=5 ...\"");
+    if (true == semaphore_take(semaphore_b))
+    {
+        both_mode_pub.publish(mode);
+        pose.pose.position.x= 0;
+        pose.pose.position.y= 0;
+        pose.pose.position.z= 8;
+        while(abs(0 - vlocal_pose.pose.position.x) > OFFSET || \
+        abs(0 - vlocal_pose.pose.position.y) > OFFSET || \
+        abs(5 - vlocal_pose.pose.position.z) > OFFSET )
+        {
+            local_position_pub.publish(pose);
+            ros::spinOnce();
+            rate.sleep();
+        }
+        sleep(2);
+        system("echo \"\\r\u2714 4: Sent pose X=0 | Y=0 | Z=5 !!!    \"");
+        semaphore_give(semaphore_b);
+    }
+    cout << "\x1B[31mPlease open new terminal and run rosrun calculationps node\033[0m" << endl;
+    cout << "\x1B[31mand then Press Enter to Continue\033[0m" << endl;
+    cin.ignore();
 
-    system("echo -n \"Landing ...\"");
-    std_msgs::String msgs;
-    std::stringstream ss;
-    ss << "LAND";
-    msgs.data = ss.str();
-    custom_activity_pub.publish(msgs);
-    while(current_state.armed == true);
-    system("echo \"\\r\u2714 Land !!!    \"");
+
+    /*Publish TFs for each of the markers*/
+    // static tf2_ros::TransformBroadcaster br;
+    // auto stamp = ros::Time::now();
+
+    // /*Create and publish tf message for each marker*/
+    // tf2_msgs::TFMessage tf_msg_list;
+
+    // geometry_msgs::TransformStamped tf_msg;
+    // stringstream ss;
+
+
+    // ss << "marker_id7";
+    // tf_msg.child_frame_id          = ss.str();
+    // tf_msg.transform.translation.x = 2;
+    // tf_msg.transform.translation.y = 2;
+    // while(abs(4 - vlocal_pose.pose.position.z) > OFFSET)
+    // {
+    //     tf_msg.header.stamp            = stamp;
+    //     tf_msg.transform.translation.z = vlocal_pose.pose.position.z - 0.1;
+
+    //     tf_msg_list.transforms.push_back(tf_msg);
+    //     br.sendTransform(tf_msg);
+    //     tf_list_pub_.publish(tf_msg_list);
+    // }
+
+
+
+    // system("echo -n \"Landing ...\"");
+    // std_msgs::String msgs;
+    // std::stringstream ss;
+    // ss << "LAND";
+    // msgs.data = ss.str();
+    // custom_activity_pub.publish(msgs);
+    // while(current_state.armed == true);
+    // system("echo \"\\r\u2714 Land !!!    \"");
+
     cout <<"\x1B[36m-------------------------------------------------------\033[0m"<< endl;
     cout <<"\x1B[34mCompleted\033[0m"<<endl;
     cout <<"\x1B[36m-------------------------------------------------------\033[0m"<< endl;

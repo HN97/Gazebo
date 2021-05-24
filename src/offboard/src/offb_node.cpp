@@ -45,6 +45,7 @@
 #define BOTH     3
 #define PRECISION(x)    round(x * 100) / 100
 #define CHECK_M         (CHECK_MARK="\033[0;32m\xE2\x9C\x94\033[0m")
+#define PRECISION(x)    round(x * 100) / 100
 
 /******************************************************************************* 
 
@@ -189,12 +190,15 @@ void init_pose()
 int main(int argc, char **argv)
 {
     int mode_controll;
-    char path_script[250];
     double output_x, output_y, output_z;
     getcwd(path, sizeof(path));
-    strcpy(path_script, path);
-    strcat(path, "/Tool/gen_report/velocity.txt");
-    strcat(path_script, "/scripts/gui_script.sh");
+// #ifndef HITL
+//     char path_script[250];
+//     strcpy(path_script, path);
+//     strcat(path, "/Tool/gen_report/velocity.txt");
+//     strcat(path_script, "/scripts/gui_script.sh");
+// #endif /* HITL */
+    strcat(path, "/position.txt");
     outfile0.open(path);
     outfile0 << "x " << "y " << "z " << "m " << "s" << endl;
 
@@ -229,6 +233,7 @@ int main(int argc, char **argv)
         case PID:
             cout << "PID controller is chosen \nENTER Position Local ENU frame [x y z]: ";
             init_pose();
+            break;
         case BOTH:
             cout << "PID controller is chosen \nENTER Position Local ENU frame [x y z]: ";
             init_pose();
@@ -293,17 +298,6 @@ int main(int argc, char **argv)
         ros::spinOnce();
         // rate.sleep();
     }
-    // system("./scripts/gui_script.sh 0 0 \'init\'");
-    // system("./scripts/gui_script.sh 30 0.75 \'configuration files\'");
-    // system("./scripts/gui_script.sh 90 0.75 \'update registery\'");
-    // system("./scripts/gui_script.sh 100 2 \'done\'");
-    // system("printf \"\n\"");
-
-    // system("./scripts/gui_script.sh 0 0 \'init\'");
-    // system("./scripts/gui_script.sh 30 1 \'configuration files\'");
-    // system("./scripts/gui_script.sh 60 1 \'download file\'");
-    // system("./scripts/gui_script.sh 100 1 \'done\'");;
-    // cout << "\n\u2705 Completed."<<endl;
 
     mavros_msgs::SetMode offb_set_mode, offset_mode;
     mavros_msgs::CommandBool arm_cmd;
@@ -317,12 +311,9 @@ int main(int argc, char **argv)
     {
 #ifdef HITL
         system("echo -n \"\e[4mWaiting for activation mode\e[0m\n\"");
-        system("echo -n \"OFFBOARD mode...\"");
-        while(current_state.mode != "OFFBOARD");
-        system("echo -e \"\\r\033[0;32m\xE2\x9C\x94\033[0m OFFBOARD ready!!!\"");
-        system("echo -n \"OFFBOARD mode...\"");
-        while(!current_state.armed);
-        system("echo -e \"\\r\033[0;32m\xE2\x9C\x94\033[0m OFFBOARD ready!!!\"");
+        system("echo -n \"OFFBOARD && ARMED mode...\"");
+        while(current_state.mode != "OFFBOARD" || !current_state.armed);
+        system("echo -e \"\\r\033[0;32m\xE2\x9C\x94\033[0m OFFBOARD && ARMED ready!!!\"");
 #else
         if (STATE_CHECK == 1)
         {
@@ -371,12 +362,9 @@ int main(int argc, char **argv)
             output_y = pid_y.getOutput(PRECISION(vlocal_pose.pose.position.y), pose.pose.position.y);
             output_z = pid_z.getOutput(PRECISION(vlocal_pose.pose.position.z), pose.pose.position.z);
 
-            output_x = (int)(output_x*100);
-            output_y = (int)(output_y*100);
-            output_z = (int)(output_z*100);
-            output_x = output_x/100;
-            output_y = output_y/100;
-            output_z = output_z/100;
+            output_x = PRECISION(output_x);
+            output_y = PRECISION(output_y);
+            output_z = PRECISION(output_z);
 
             var_velocity.twist.linear.x = output_x;
             var_velocity.twist.linear.y = output_y;
