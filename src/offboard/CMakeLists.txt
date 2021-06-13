@@ -36,7 +36,7 @@ include_directories(
 
 # catkin_add_nosetests(test)
 # define HILT with mode simulation hardware
-add_definitions(-DHITL -DBAR=1)
+add_definitions(-DSITL -DBAR=1)
 
 # Find Gazebo
 include_directories( src ../../pid)

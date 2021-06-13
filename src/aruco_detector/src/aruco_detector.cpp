@@ -31,6 +31,32 @@
 #include <opencv2/aruco.hpp>
 #include <opencv2/imgproc.hpp>
 #include <stdint.h>
+#include "opencv2/opencv.hpp"
+#ifdef APRILTAG
+extern "C" {
+#include "apriltag.h"
+#include "tag36h11.h"
+#include "tag25h9.h"
+#include "tag16h5.h"
+#include "tagCircle21h7.h"
+#include "tagCircle49h12.h"
+#include "tagCustom48h12.h"
+#include "tagStandard41h12.h"
+#include "tagStandard52h13.h"
+#include "common/getopt.h"
+#include "apriltag_pose.h"
+}
+
+#define tagSIZE    0.5
+#define FX         1179.598752
+#define FY         1177.000389
+#define CX         928.099247
+#define CY         558.635461
+
+apriltag_detector_t *td;
+apriltag_detection_info_t info;
+#endif
+
 /******************************************************************************* 
 
  *                               Definitions 
@@ -87,9 +113,9 @@ uint8_t switch_ID      = 25;
 uint16_t halfpX = image_width/2;
 uint16_t halfpY = image_height/2;
 
-VideoCapture cap;
-int deviceID = 0;             // 0 = open default camera
-int apiID = cv::CAP_ANY;
+// VideoCapture cap;
+// int deviceID = 0;             // 0 = open default camera
+// int apiID = cv::CAP_ANY;
 
 /******************************************************************************* 
 
@@ -127,7 +153,7 @@ tf2::Vector3 cv_vector3d_to_tf_vector3(const Vec3d &vec)
 
 tf2::Quaternion cv_vector3d_to_tf_quaternion(const Vec3d &rotation_vector)
 {
-    Mat rotation_matrix;
+    // Mat rotation_matrix; 
 
     auto ax    = rotation_vector[0], ay = rotation_vector[1], az = rotation_vector[2];
     auto angle = sqrt(ax * ax + ay * ay + az * az);
@@ -179,7 +205,7 @@ void callback(const ImageConstPtr &image_msg)
 {
     string frame_id = image_msg->header.frame_id;
     auto image = cv_bridge::toCvShare(image_msg)->image;
-    cv::Mat display_image(image);
+    Mat display_image(image);
     vector<int> ids_m;
     vector<int> ids;
     vector<vector<Point2f>> corners, rejected;
@@ -196,6 +222,38 @@ void callback(const ImageConstPtr &image_msg)
     {
         GaussianBlur(image, image, Size(blur_window_size, blur_window_size), 0, 0);
     }
+#ifdef APRILTAG
+    Mat gray;
+    cvtColor(display_image, gray, COLOR_BGR2GRAY);
+
+    // Make an image_u8_t header for the Mat data
+    image_u8_t im =
+    {
+        .width = gray.cols,
+        .height = gray.rows,
+        .stride = gray.cols,
+        .buf = gray.data
+    };
+    zarray_t *detections = apriltag_detector_detect(td, &im);
+
+        // Draw detection outlines
+        for (int i = 0; i < zarray_size(detections); i++)
+        {
+            apriltag_detection_t *det;
+            apriltag_pose_t pose;
+            zarray_get(detections, i, &det);
+            printf("detection %3d: id %4d, hamming %d\n", i, det->id, det->hamming);
+            info.det = det;
+            double err = estimate_tag_pose(&info, &pose);
+            cout << "Pose estimation:" << endl;
+            cout << "x: " << pose.t->data[0] << endl;
+            cout << "y: " << pose.t->data[1] << endl;
+            cout << "z: " << pose.t->data[2] << endl;
+        }
+        apriltag_detections_destroy(detections);
+
+}
+#else
     /* Detect the markers */
     aruco::detectMarkers(image, dictionary, corners, ids_m, detector_params, rejected);
 
@@ -205,7 +263,7 @@ void callback(const ImageConstPtr &image_msg)
     /* Show image if no markers are detected */
     if (ids_m.empty())
     {
-        cv::putText(display_image, "Markers not found", cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 1, CV_RGB(255, 0, 0), 2);
+        // putText(display_image, "Markers not found", cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 1, CV_RGB(255, 0, 0), 2);
         if (show_detections)
         {
             if (result_img_pub_.getNumSubscribers() > 0)
@@ -271,33 +329,33 @@ void callback(const ImageConstPtr &image_msg)
             ROS_INFO("x: [%f]", translation_vectors[i](0));
             ROS_INFO("y: [%f]", translation_vectors[i](1));
             ROS_INFO("z: [%f]", translation_vectors[i](2));
-            vector<Point2f> topLeft, bottomRight;
-            uint16_t cX = 0;
-            uint16_t cY = 0;
-            float bounding = 0.0, tan20;
-            topLeft.push_back(corners_cvt[0][0]);
-            bottomRight.push_back(corners_cvt[0][2]);
-            // cout << corners_cvt[0]<< endl;
-            // cout << topLeft[0]<< endl;
-            // cout << bottomRight[0]<< endl;
+            // vector<Point2f> topLeft, bottomRight;
+            // uint16_t cX = 0;
+            // uint16_t cY = 0;
+            // float bounding = 0.0, tan20;
+            // topLeft.push_back(corners_cvt[0][0]);
+            // bottomRight.push_back(corners_cvt[0][2]);
+            // // cout << corners_cvt[0]<< endl;
+            // // cout << topLeft[0]<< endl;
+            // // cout << bottomRight[0]<< endl;
 
-            cX = uint16_t((topLeft[0].x + bottomRight[0].x)/2.0);
-            cY = uint16_t((topLeft[0].y + bottomRight[0].y)/2.0);
-            cout << cX << "\t" << cY << "\t" <<translation_vectors[i](2)<<endl;
-            tan20 = 0.36397023;
-            bounding = tan20*translation_vectors[i](2)*2;
-            cout<< "bounding: "<< bounding << endl;
-            uint16_t pixcelx = (abs(halfpX - cX)*bounding) / (abs(translation_vectors[i](0))*2);
-            uint16_t pixcely = (abs(halfpY - cY)*bounding) / (abs(translation_vectors[i](1))*2);
-            cout << "pixcel: "<< pixcelx << "    "<< pixcely << endl;
-            cout << halfpX+pixcelx << "\t" << halfpY+pixcely << endl;
-            cout << halfpX-pixcelx << "\t" << halfpY-pixcely << endl;
-            rectangle(display_image, Point(halfpX+pixcelx, halfpY+pixcely), Point(halfpX-pixcelx, halfpY-pixcely), Scalar(0, 255, 20), 3, 8, 0);
-            inArea = Aruco_check_Area(cX, cY, pixcelx, pixcely);
-            if (inArea)
-            {
-                ROS_INFO("Marker in the box area");
-            }
+            // cX = uint16_t((topLeft[0].x + bottomRight[0].x)/2.0);
+            // cY = uint16_t((topLeft[0].y + bottomRight[0].y)/2.0);
+            // cout << cX << "\t" << cY << "\t" <<translation_vectors[i](2)<<endl;
+            // tan20 = 0.36397023;
+            // bounding = tan20*translation_vectors[i](2)*2;
+            // cout<< "bounding: "<< bounding << endl;
+            // uint16_t pixcelx = (abs(halfpX - cX)*bounding) / (abs(translation_vectors[i](0))*2);
+            // uint16_t pixcely = (abs(halfpY - cY)*bounding) / (abs(translation_vectors[i](1))*2);
+            // cout << "pixcel: "<< pixcelx << "    "<< pixcely << endl;
+            // cout << halfpX+pixcelx << "\t" << halfpY+pixcely << endl;
+            // cout << halfpX-pixcelx << "\t" << halfpY-pixcely << endl;
+            // rectangle(display_image, Point(halfpX+pixcelx, halfpY+pixcely), Point(halfpX-pixcelx, halfpY-pixcely), Scalar(0, 255, 20), 3, 8, 0);
+            // inArea = Aruco_check_Area(cX, cY, pixcelx, pixcely);
+            // if (inArea)
+            // {
+            //     ROS_INFO("Marker in the box area");
+            // }
         }
         /*Draw marker poses*/
         if (show_detections)
@@ -307,15 +365,17 @@ void callback(const ImageConstPtr &image_msg)
 
         if (result_img_pub_.getNumSubscribers() > 0)
         {
-            putText(display_image, ""+SSTR(image_fps)+"FPS m. size: "+SSTR(marker_size)+" m", cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 0.8, CV_RGB(255, 255, 0), 2);
+            // putText(display_image, ""+SSTR(image_fps)+"FPS m. size: "+SSTR(marker_size)+" m", cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 0.8, CV_RGB(255, 255, 0), 2);
             for(int i = 0; i<ids.size();i++)
             {
-                    Vec3d distance_z_first = translation_vectors[i];
-                    double distance_z = ROUND3(distance_z_first[2]);
-                    putText(display_image, "id: "+SSTR(ids[i])+" z dis: "+SSTR(distance_z)+" m", cv::Point(10, 70+i*30), cv::FONT_HERSHEY_SIMPLEX, 0.9, CV_RGB(0, 255, 0), 2);
+                    // Vec3d distance_z_first = translation_vectors[i];
+                    // double distance_z = ROUND3(distance_z_first[2]);
+                    // putText(display_image, "id: "+SSTR(ids[i])+" z dis: "+SSTR(distance_z)+" m", cv::Point(10, 70+i*30), cv::FONT_HERSHEY_SIMPLEX, 0.9, CV_RGB(0, 255, 0), 2);
                     result_img_pub_.publish(cv_bridge::CvImage(std_msgs::Header(), "bgr8", display_image).toImageMsg());
             }
         }
+
+#endif
         /*Publish TFs for each of the markers*/
         static tf2_ros::TransformBroadcaster br;
         auto stamp = ros::Time::now();
@@ -354,6 +414,124 @@ void callback(const ImageConstPtr &image_msg)
 }
 
 /*TODO: slider extension mach ne hashmap von int,array*/
+#ifdef APRILTAG
+int main(int argc, char *argv[])
+{
+    signal(SIGINT, int_handler);
+    getopt_t *getopt = getopt_create();
+
+    getopt_add_bool(getopt, 'h', "help", 0, "Show this help");
+    getopt_add_bool(getopt, 'd', "debug", 0, "Enable debugging output (slow)");
+    getopt_add_bool(getopt, 'q', "quiet", 0, "Reduce output");
+    getopt_add_string(getopt, 'f', "family", "tagCustom48h12", "Tag family to use");
+    getopt_add_int(getopt, 't', "threads", "1", "Use this many CPU threads");
+    getopt_add_double(getopt, 'x', "decimate", "2.0", "Decimate input image by this factor");
+    getopt_add_double(getopt, 'b', "blur", "0.0", "Apply low-pass blur to input");
+    getopt_add_bool(getopt, '0', "refine-edges", 1, "Spend more time trying to align edges of tags");
+    getopt_add_int(getopt, 'c', "cam", "0", "Camera is used to get stream");
+
+    if (!getopt_parse(getopt, argc, argv, 1) ||
+            getopt_get_bool(getopt, "help")) {
+        printf("Usage: %s [options]\n", argv[0]);
+        getopt_do_usage(getopt);
+        exit(0);
+    }
+
+    // Initialize tag detector with options
+    apriltag_family_t *tf = NULL;
+    const char *famname = getopt_get_string(getopt, "family");
+    if (!strcmp(famname, "tag36h11")) {
+        tf = tag36h11_create();
+    } else if (!strcmp(famname, "tag25h9")) {
+        tf = tag25h9_create();
+    } else if (!strcmp(famname, "tag16h5")) {
+        tf = tag16h5_create();
+    } else if (!strcmp(famname, "tagCircle21h7")) {
+        tf = tagCircle21h7_create();
+    } else if (!strcmp(famname, "tagCircle49h12")) {
+        tf = tagCircle49h12_create();
+    } else if (!strcmp(famname, "tagStandard41h12")) {
+        tf = tagStandard41h12_create();
+    } else if (!strcmp(famname, "tagStandard52h13")) {
+        tf = tagStandard52h13_create();
+    } else if (!strcmp(famname, "tagCustom48h12")) {
+        tf = tagCustom48h12_create();
+    } else {
+        printf("Unrecognized tag family name. Use e.g. \"tag36h11\".\n");
+        exit(-1);
+    }
+
+
+    td = apriltag_detector_create();
+    apriltag_detector_add_family(td, tf);
+    td->quad_decimate = getopt_get_double(getopt, "decimate");
+    td->quad_sigma = getopt_get_double(getopt, "blur");
+    td->nthreads = getopt_get_int(getopt, "threads");
+    td->debug = getopt_get_bool(getopt, "debug");
+    td->refine_edges = getopt_get_bool(getopt, "refine-edges");
+    /* First create an apriltag_detection_info_t struct using your known parameters. */
+    info.tagsize = tagSIZE;
+    info.fx = FX;
+    info.fy = FY;
+    info.cx = CX;
+    info.cy = CY;
+
+    /*Initalize ROS node*/
+    int queue_size = 10;
+    ros::init(argc, argv, "aruco_detect_node");
+    ros::NodeHandle nh("~");
+    string rgb_topic, rgb_info_topic, dictionary_name;
+
+    nh.getParam("camera", rgb_topic);
+    nh.getParam("camera_info", rgb_info_topic);
+    nh.getParam("marker_size", marker_size);
+    nh.getParam("image_fps", image_fps);
+    nh.getParam("image_width", image_width);
+    nh.getParam("image_height", image_height);
+    nh.getParam("tf_prefix", marker_tf_prefix);
+    nh.getParam("enable_blur", enable_blur);
+    nh.getParam("blur_window_size", blur_window_size);
+    nh.getParam("show_detections", show_detections);
+
+
+    /* camera */
+    ros::Subscriber rgb_sub = nh.subscribe(rgb_topic.c_str(), queue_size, callback);
+    ros::Subscriber rgb_info_sub = nh.subscribe(rgb_info_topic.c_str(), queue_size, callback_camera_info);
+    // ros::Subscriber parameter_sub = nh.subscribe("/update_params", queue_size, update_params_cb);
+    /*Publisher:*/
+    image_transport::ImageTransport it(nh);
+    result_img_pub_ = it.advertise("/result_img", 10);
+    read_frame_pub  = it.advertise("/camera/color/image_raw", 10);
+    tf_list_pub_    = nh.advertise<tf2_msgs::TFMessage>("/tf_list", 1000);
+    ros::spin();
+
+    /* Free Memory */
+    apriltag_detector_destroy(td);
+
+    if (!strcmp(famname, "tag36h11")) {
+        tag36h11_destroy(tf);
+    } else if (!strcmp(famname, "tag25h9")) {
+        tag25h9_destroy(tf);
+    } else if (!strcmp(famname, "tag16h5")) {
+        tag16h5_destroy(tf);
+    } else if (!strcmp(famname, "tagCircle21h7")) {
+        tagCircle21h7_destroy(tf);
+    } else if (!strcmp(famname, "tagCircle49h12")) {
+        tagCircle49h12_destroy(tf);
+    } else if (!strcmp(famname, "tagStandard41h12")) {
+        tagStandard41h12_destroy(tf);
+    } else if (!strcmp(famname, "tagStandard52h13")) {
+        tagStandard52h13_destroy(tf);
+    } else if (!strcmp(famname, "tagCustom48h12")) {
+        tagCustom48h12_destroy(tf);
+    }
+
+
+    getopt_destroy(getopt);
+
+    return 0;
+}
+#else
 
 int main(int argc, char **argv)
 {
@@ -430,3 +608,5 @@ int main(int argc, char **argv)
     // }
     return 0;
 }
+#endif
+
