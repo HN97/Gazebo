@@ -8,7 +8,7 @@
     <arg name="camera_info" default="/camera/color/camera_info" />
     <arg name="tf_prefix" default="marker_id" />
     <arg name="show_detections" default="true" />
-    <arg name="marker_size" default="0.5" doc="length of the physical marker's side in meters"/>
+    <arg name="marker_size" default="0.3" doc="length of the physical marker's side in meters"/>
     <!-- <arg name="dictionary_name" default="DICT_5X5_50" /> -->
     <arg name="dictionary_name" default="DICT_6X6_250" />
     <arg name="blur_window_size" default="7" />

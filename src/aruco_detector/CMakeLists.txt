@@ -19,6 +19,7 @@ catkin_package(
 ###########
 
 add_definitions(-DAPRILTAG)
+add_definitions(-DSITL)
 
 include_directories(
         ${catkin_INCLUDE_DIRS} ../../apriltag

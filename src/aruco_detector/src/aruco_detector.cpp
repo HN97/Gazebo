@@ -1,10 +1,3 @@
-/**************************************************************************//**
-   @author  Markus Lamprecht
-   @date    March 2019
-   @link    www.simact.de/about_me
-   @Copyright (c) 2019 Markus Lamprecht. BSD
- *****************************************************************************/
-
 #include <csignal>
 #include <iostream>
 #include <map>      /* used for hashmap to give certainty */
@@ -47,7 +40,7 @@ extern "C" {
 #include "apriltag_pose.h"
 }
 
-#define tagSIZE    0.5
+#define tagSIZE    0.355
 #define FX         1179.598752
 #define FY         1177.000389
 #define CX         928.099247
@@ -100,7 +93,7 @@ int image_fps;
 int image_width = 1920;
 int image_height = 1080;
 /* Offset bwt the center of markers in coordinate marker*/
-float marker_size;
+float marker_size = 0.3;
 string marker_tf_prefix;
 Mat distortion_coefficients;
 Matx33d intrinsic_matrix;
@@ -131,19 +124,6 @@ void int_handler(int x) {
 
     ros::shutdown();
     exit(0);
-}
-
-bool Aruco_check_Area(uint16_t cX, uint16_t cY, uint16_t cXB, uint16_t cYB)
-{
-    uint16_t lengM, lengBox;
-    lengM = sqrt(pow(abs(halfpX - cX),2) + pow(abs(halfpY - cY),2));
-    lengBox = sqrt(pow(abs(cXB),2) + pow(abs(cYB),2));
-
-    if(lengM <= lengBox)
-    {
-        return true;
-    }
-    return false;
 }
 
 tf2::Vector3 cv_vector3d_to_tf_vector3(const Vec3d &vec)
@@ -199,13 +179,13 @@ void callback_camera_info(const CameraInfoConstPtr &msg)
 void update_params_cb(const std_msgs::Empty &msg)
 {
 
-} 
+}
 
 void callback(const ImageConstPtr &image_msg)
 {
     string frame_id = image_msg->header.frame_id;
-    auto image = cv_bridge::toCvShare(image_msg)->image;
-    Mat display_image(image);
+    auto image = cv_bridge::toCvShare(image_msg)->image;    /* To process */
+    Mat display_image(image);    /* To display */
     vector<int> ids_m;
     vector<int> ids;
     vector<vector<Point2f>> corners, rejected;
@@ -222,6 +202,10 @@ void callback(const ImageConstPtr &image_msg)
     {
         GaussianBlur(image, image, Size(blur_window_size, blur_window_size), 0, 0);
     }
+
+    line(display_image, Point(halfpX, 0), Point(halfpX, image_height), Scalar(245, 7, 96), 2);    /* y */
+    line(display_image, Point(0, halfpY), Point(image_width, halfpY), Scalar(11, 220, 93), 2);   /* x */
+
 #ifdef APRILTAG
     Mat gray;
     cvtColor(display_image, gray, COLOR_BGR2GRAY);
@@ -236,36 +220,103 @@ void callback(const ImageConstPtr &image_msg)
     };
     zarray_t *detections = apriltag_detector_detect(td, &im);
 
-        // Draw detection outlines
-        for (int i = 0; i < zarray_size(detections); i++)
+    /* Show image if no markers are detected */
+    if (0 == zarray_size(detections))
+    {
+        if (show_detections)
         {
-            apriltag_detection_t *det;
-            apriltag_pose_t pose;
-            zarray_get(detections, i, &det);
-            printf("detection %3d: id %4d, hamming %d\n", i, det->id, det->hamming);
+            putText(display_image, "Markers not found", Point(10, 30), FONT_HERSHEY_SIMPLEX, 1, CV_RGB(255, 0, 0), 2);
+            if (result_img_pub_.getNumSubscribers() > 0)
+            {
+                result_img_pub_.publish(cv_bridge::CvImage(std_msgs::Header(), "bgr8", display_image).toImageMsg());
+            }
+        }
+    }
+
+    // Draw detection outlines
+    for (int i = 0; i < zarray_size(detections); i++)
+    {
+        apriltag_detection_t *det;
+        apriltag_pose_t pose;
+        zarray_get(detections, i, &det);
+        if (det->id == 8)
+        {
+            Mat rotation_matrix(3, 3, CV_64F);
+            Mat rvec1;
+            Vec3d rotation_vector, translation_vector;
+
+            printf("detection %3d: id %4d, hamming %d, size: %f\n", i, det->id, det->hamming, marker_size);
             info.det = det;
             double err = estimate_tag_pose(&info, &pose);
             cout << "Pose estimation:" << endl;
             cout << "x: " << pose.t->data[0] << endl;
             cout << "y: " << pose.t->data[1] << endl;
             cout << "z: " << pose.t->data[2] << endl;
+
+            rotation_matrix.at<double>(0,0) = pose.R->data[0];
+            rotation_matrix.at<double>(0,1) = pose.R->data[1];
+            rotation_matrix.at<double>(0,2) = pose.R->data[2];
+            rotation_matrix.at<double>(1,0) = pose.R->data[3];
+            rotation_matrix.at<double>(1,1) = pose.R->data[4];
+            rotation_matrix.at<double>(1,2) = pose.R->data[5];
+            rotation_matrix.at<double>(2,0) = pose.R->data[6];
+            rotation_matrix.at<double>(2,1) = pose.R->data[7];
+            rotation_matrix.at<double>(2,2) = pose.R->data[8];
+            Rodrigues(rotation_matrix, rvec1);
+            /* Convert Mat to Vec3d */
+            rvec1.convertTo(rotation_vector, CV_64F);
+            
+            translation_vector[0] = pose.t->data[0];
+            translation_vector[1] = pose.t->data[1];
+            translation_vector[2] = pose.t->data[2]; 
+
+           /*Publish TFs for each of the markers*/
+            static tf2_ros::TransformBroadcaster br;
+            auto stamp = ros::Time::now();
+
+            /*Create and publish tf message for each marker*/
+            tf2_msgs::TFMessage tf_msg_list;
+            geometry_msgs::TransformStamped tf_msg;
+            stringstream ss;
+
+            auto translation_vector_s = translation_vector;
+            auto rotation_vector_s    = rotation_vector;
+            auto transform          = create_transform(translation_vector_s, rotation_vector_s);
+            ss << marker_tf_prefix << det->id;
+            tf_msg.header.stamp            = stamp;
+            tf_msg.header.frame_id         = frame_id;
+            tf_msg.child_frame_id          = ss.str();
+            tf_msg.transform.translation.x = transform.getOrigin().getX();
+            tf_msg.transform.translation.y = transform.getOrigin().getY();
+            tf_msg.transform.translation.z = transform.getOrigin().getZ();
+            tf_msg.transform.rotation.x    = transform.getRotation().getX();
+            tf_msg.transform.rotation.y    = transform.getRotation().getY();
+            tf_msg.transform.rotation.z    = transform.getRotation().getZ();
+            tf_msg.transform.rotation.w    = transform.getRotation().getW();
+            tf_msg_list.transforms.push_back(tf_msg);
+            br.sendTransform(tf_msg);
+
+            if( tf_msg_list.transforms.size() )
+            {
+                tf_list_pub_.publish(tf_msg_list);
+            }
+
         }
-        apriltag_detections_destroy(detections);
+
+    }
+    apriltag_detections_destroy(detections);
 
 }
 #else
     /* Detect the markers */
     aruco::detectMarkers(image, dictionary, corners, ids_m, detector_params, rejected);
 
-    cv::line(display_image, cv::Point(halfpX, 0), cv::Point(halfpX, image_height), cv::Scalar(245, 7, 96), 2);    /* y */
-    cv::line(display_image, cv::Point(0, halfpY), cv::Point(image_width, halfpY), cv::Scalar(11, 220, 93), 2);   /* x */
- 
     /* Show image if no markers are detected */
     if (ids_m.empty())
     {
-        // putText(display_image, "Markers not found", cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 1, CV_RGB(255, 0, 0), 2);
         if (show_detections)
         {
+            putText(display_image, "Markers not found", cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 1, CV_RGB(255, 0, 0), 2);
             if (result_img_pub_.getNumSubscribers() > 0)
             {
                 result_img_pub_.publish(cv_bridge::CvImage(std_msgs::Header(), "bgr8", display_image).toImageMsg());
@@ -292,6 +343,7 @@ void callback(const ImageConstPtr &image_msg)
 
         for (auto i = 0; i < rotation_vectors.size(); ++i)
         {
+#ifdef SITL
             aruco::drawAxis(image, intrinsic_matrix, distortion_coefficients,
                             rotation_vectors[i], translation_vectors[i], marker_size * 0.5f);
             /* Display Translation vector */
@@ -315,7 +367,7 @@ void callback(const ImageConstPtr &image_msg)
             cv::putText( display_image, vector_to_marker.str(),
                         cv::Point(10, 145), cv::FONT_HERSHEY_SIMPLEX, 0.8,
                         CV_RGB(255, 255, 0), 2);
-
+#endif
             if (SWITCH_ALTITUDE > translation_vectors[0](2))
             {
                 switch_ID = IDLOW;
@@ -329,53 +381,21 @@ void callback(const ImageConstPtr &image_msg)
             ROS_INFO("x: [%f]", translation_vectors[i](0));
             ROS_INFO("y: [%f]", translation_vectors[i](1));
             ROS_INFO("z: [%f]", translation_vectors[i](2));
-            // vector<Point2f> topLeft, bottomRight;
-            // uint16_t cX = 0;
-            // uint16_t cY = 0;
-            // float bounding = 0.0, tan20;
-            // topLeft.push_back(corners_cvt[0][0]);
-            // bottomRight.push_back(corners_cvt[0][2]);
-            // // cout << corners_cvt[0]<< endl;
-            // // cout << topLeft[0]<< endl;
-            // // cout << bottomRight[0]<< endl;
-
-            // cX = uint16_t((topLeft[0].x + bottomRight[0].x)/2.0);
-            // cY = uint16_t((topLeft[0].y + bottomRight[0].y)/2.0);
-            // cout << cX << "\t" << cY << "\t" <<translation_vectors[i](2)<<endl;
-            // tan20 = 0.36397023;
-            // bounding = tan20*translation_vectors[i](2)*2;
-            // cout<< "bounding: "<< bounding << endl;
-            // uint16_t pixcelx = (abs(halfpX - cX)*bounding) / (abs(translation_vectors[i](0))*2);
-            // uint16_t pixcely = (abs(halfpY - cY)*bounding) / (abs(translation_vectors[i](1))*2);
-            // cout << "pixcel: "<< pixcelx << "    "<< pixcely << endl;
-            // cout << halfpX+pixcelx << "\t" << halfpY+pixcely << endl;
-            // cout << halfpX-pixcelx << "\t" << halfpY-pixcely << endl;
-            // rectangle(display_image, Point(halfpX+pixcelx, halfpY+pixcely), Point(halfpX-pixcelx, halfpY-pixcely), Scalar(0, 255, 20), 3, 8, 0);
-            // inArea = Aruco_check_Area(cX, cY, pixcelx, pixcely);
-            // if (inArea)
-            // {
-            //     ROS_INFO("Marker in the box area");
-            // }
         }
         /*Draw marker poses*/
         if (show_detections)
         {
             aruco::drawDetectedMarkers(display_image, corners_cvt, ids);
-        }
 
-        if (result_img_pub_.getNumSubscribers() > 0)
-        {
-            // putText(display_image, ""+SSTR(image_fps)+"FPS m. size: "+SSTR(marker_size)+" m", cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 0.8, CV_RGB(255, 255, 0), 2);
-            for(int i = 0; i<ids.size();i++)
+            if (result_img_pub_.getNumSubscribers() > 0)
             {
-                    // Vec3d distance_z_first = translation_vectors[i];
-                    // double distance_z = ROUND3(distance_z_first[2]);
-                    // putText(display_image, "id: "+SSTR(ids[i])+" z dis: "+SSTR(distance_z)+" m", cv::Point(10, 70+i*30), cv::FONT_HERSHEY_SIMPLEX, 0.9, CV_RGB(0, 255, 0), 2);
-                    result_img_pub_.publish(cv_bridge::CvImage(std_msgs::Header(), "bgr8", display_image).toImageMsg());
+                for(int i = 0; i<ids.size();i++)
+                {
+                        result_img_pub_.publish(cv_bridge::CvImage(std_msgs::Header(), "bgr8", display_image).toImageMsg());
+                }
             }
         }
 
-#endif
         /*Publish TFs for each of the markers*/
         static tf2_ros::TransformBroadcaster br;
         auto stamp = ros::Time::now();
@@ -412,11 +432,13 @@ void callback(const ImageConstPtr &image_msg)
         }
     }
 }
+#endif
 
 /*TODO: slider extension mach ne hashmap von int,array*/
 #ifdef APRILTAG
 int main(int argc, char *argv[])
 {
+    camera_model_computed = true;
     signal(SIGINT, int_handler);
     getopt_t *getopt = getopt_create();
 
@@ -483,7 +505,7 @@ int main(int argc, char *argv[])
     string rgb_topic, rgb_info_topic, dictionary_name;
 
     nh.getParam("camera", rgb_topic);
-    nh.getParam("camera_info", rgb_info_topic);
+    // nh.getParam("camera_info", rgb_info_topic);
     nh.getParam("marker_size", marker_size);
     nh.getParam("image_fps", image_fps);
     nh.getParam("image_width", image_width);
@@ -496,7 +518,7 @@ int main(int argc, char *argv[])
 
     /* camera */
     ros::Subscriber rgb_sub = nh.subscribe(rgb_topic.c_str(), queue_size, callback);
-    ros::Subscriber rgb_info_sub = nh.subscribe(rgb_info_topic.c_str(), queue_size, callback_camera_info);
+    // ros::Subscriber rgb_info_sub = nh.subscribe(rgb_info_topic.c_str(), queue_size, callback_camera_info);
     // ros::Subscriber parameter_sub = nh.subscribe("/update_params", queue_size, update_params_cb);
     /*Publisher:*/
     image_transport::ImageTransport it(nh);
