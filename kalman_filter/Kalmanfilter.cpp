@@ -1,4 +1,4 @@
-#include "Kalmanfiler.h"
+#include "Kalmanfilter.h"
 
 /**********************************
 * Constructor functions

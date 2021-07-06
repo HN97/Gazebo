@@ -30,7 +30,7 @@ include_directories(
 )
 file(GLOB SOURCES src/*.cpp ../../kalman_filter/*.cpp)
 add_executable(${PROJECT_NAME}_node ${SOURCES} )
-add_library(${PROJECT_NAME}_node_plugin SHARED src/controlpid.cpp ../../kalman_filter/Kalmanfiler.cpp)
+add_library(${PROJECT_NAME}_node_plugin SHARED ${SOURCES})
 target_link_libraries(${PROJECT_NAME}_node
         ${catkin_LIBRARIES}
         )

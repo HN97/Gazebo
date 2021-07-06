@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(controlps)
+project(calculationps)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 add_compile_options(-std=c++11)
@@ -17,9 +17,6 @@ catkin_package(
 catkin_install_python(PROGRAMS 
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
-## Declare ROS messages and services
-# add_message_files(DIRECTORY msg FILES Num.msg)
-# add_service_files(DIRECTORY srv FILES AddTwoInts.srv)
 
 ###########
 ## Build ##
@@ -29,27 +26,8 @@ include_directories(
         ${catkin_INCLUDE_DIRS} ../../kalman_filter
 )
 file(GLOB SOURCES src/*.cpp ../../kalman_filter/*.cpp)
-add_executable(${PROJECT_NAME}_node ${SOURCES} )
+add_executable(${PROJECT_NAME}_node ${SOURCES})
 target_link_libraries(${PROJECT_NAME}_node
         ${catkin_LIBRARIES}
         )
 set_target_properties(${PROJECT_NAME}_node PROPERTIES OUTPUT_NAME node PREFIX "")
-
-
-#############
-## Install ##
-#############
-
-## Mark executables and/or libraries for installation
-#install(TARGETS ${PROJECT_NAME} ${PROJECT_NAME}_node
-#        ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#        LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#        RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-#        )
-
-## Mark other files for installation (e.g. launch and bag files, etc.)
-#install(FILES
-#        launch/detector.launch
-#        DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
-#        )
-

@@ -29,9 +29,11 @@
 #include <cstdlib>
 #include "std_msgs/String.h"
 #include "std_msgs/Float32.h"
+#include "std_msgs/Int16.h"
 #include "MiniPID.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <mavros_msgs/PositionTarget.h>
 
 /******************************************************************************* 
 
@@ -40,8 +42,10 @@
  ******************************************************************************/ 
 #define LOCAL    1
 #define PID      2
+#define BOTH     3
 #define PRECISION(x)    round(x * 100) / 100
 #define CHECK_M         (CHECK_MARK="\033[0;32m\xE2\x9C\x94\033[0m")
+#define PRECISION(x)    round(x * 100) / 100
 
 /******************************************************************************* 
 
@@ -62,8 +66,9 @@ static int STATE_CHECK = 1;
 ofstream outfile0;
 char path[250];
 static char var_active_status[20];
-Matrix3f R;     /* declaring a 3*3 matrix */
-Vector3f var_offset_pose;     /* vectors to store position before and after */
+int16_t mode_select = LOCAL;
+Matrix3f R;
+Vector3f var_offset_pose;
 Vector3f positionbe;
 Vector3f positionaf;
 mavros_msgs::State current_state;
@@ -71,9 +76,12 @@ geometry_msgs::PoseStamped pose;
 geometry_msgs::PoseStamped vlocal_pose;
 geometry_msgs::TwistStamped var_velocity;
 
-MiniPID pid_x = MiniPID(3.0, 0.2, 0.05, 0.15);
-MiniPID pid_y = MiniPID(3.0, 0.2, 0.05, 0.1);
-MiniPID pid_z = MiniPID(1.5, .012, 0.05, 0.1);
+// MiniPID pid_x = MiniPID(3.0, 0.2, 0.0, 0.15);
+// MiniPID pid_y = MiniPID(3.0, 0.2, 0.0, 0.1);
+// MiniPID pid_z = MiniPID(1.5, .012, 0.0, 0.1);
+MiniPID pid_x = MiniPID(0.4, 0.01, 0.0, 0.1);
+MiniPID pid_y = MiniPID(0.4, 0.01, 0.0, 0.1);
+MiniPID pid_z = MiniPID(0.4, 0.01, 0.0, 0.1);
 /******************************************************************************* 
 
  *                                  Code 
@@ -144,12 +152,23 @@ void set_target_position_callback(const geometry_msgs::PoseStamped::ConstPtr& ms
 //     float angle_yaw = msg.data;
 // }
 
+void both_mode_callback(const std_msgs::Int16::ConstPtr& msg)
+{
+    mode_select = msg->data;
+}
+
 void custom_activity_callback(const std_msgs::String::ConstPtr& msg)
 {
     strcpy(var_active_status, msg->data.c_str());
-    cout << var_active_status << endl;
 }
 
+/**
+ * @brief
+ * 
+ * @param 
+ *
+ * @return 
+ */
 void signal_callback_handler(int signum)
 {
     cout << "\n======================================="<< endl;
@@ -160,15 +179,26 @@ void signal_callback_handler(int signum)
     exit(signum);
 }
 
+void init_pose()
+{
+    cin  >> pose.pose.position.x >> pose.pose.position.y >> pose.pose.position.z ;
+    cout << "\x1B[93mAxis x\033[0m : " << pose.pose.position.x << "m" << endl;
+    cout << "\x1B[93mAxis y\033[0m : " << pose.pose.position.y << "m" << endl;
+    cout << "\x1B[93mAxis z\033[0m : " << pose.pose.position.z << "m" << endl;
+}
+
 int main(int argc, char **argv)
 {
     int mode_controll;
-    char path_script[250];
     double output_x, output_y, output_z;
     getcwd(path, sizeof(path));
-    strcpy(path_script, path);
-    strcat(path, "/Tool/gen_report/velocity.txt");
-    strcat(path_script, "/scripts/gui_script.sh");
+// #ifndef HITL
+//     char path_script[250];
+//     strcpy(path_script, path);
+//     strcat(path, "/Tool/gen_report/velocity.txt");
+//     strcat(path_script, "/scripts/gui_script.sh");
+// #endif /* HITL */
+    strcat(path, "/position.txt");
     outfile0.open(path);
     outfile0 << "x " << "y " << "z " << "m " << "s" << endl;
 
@@ -184,26 +214,29 @@ int main(int argc, char **argv)
     cout << "\U0001F449 2: Control follow PID               |"<< endl;
     cout << "\U0001F449 3: Control follow Pose & PID        |"<< endl;
     cout << "======================================="<< endl;
-    cout << " ENTER Option: ";
+    cout << " \x1B[93m\u262D ENTER Option:\033[0m ";
 
     cin >> mode_controll;
+#ifdef HITL
+    pose.pose.position.x = 0;
+    pose.pose.position.y = 0;
+    pose.pose.position.z = 0;
+
+#else
     /* Init position */
     switch(mode_controll)
     {
         case LOCAL:
             cout << "PLEASE ENTER POSITION INIT Follow Local ENU frame [x y z]: ";
-            cin  >> pose.pose.position.x >> pose.pose.position.y >> pose.pose.position.z ;
-            cout << "Axis x : " << pose.pose.position.x  << "m" << endl;
-            cout << "Axis y : " << pose.pose.position.y << "m" << endl;
-            cout << "Axis z : " << pose.pose.position.z << "m" << endl;
+            init_pose();
             break;
         case PID:
             cout << "PID controller is chosen \nENTER Position Local ENU frame [x y z]: ";
-            cin  >> pose.pose.position.x >> pose.pose.position.y >> pose.pose.position.z ;
-            cout << "Time: " << endl;
-            cout << "Axis x : " << pose.pose.position.x  << "m" << endl;
-            cout << "Axis y : " << pose.pose.position.y << "m" << endl;
-            cout << "Axis z : " << pose.pose.position.z << "m" << endl;
+            init_pose();
+            break;
+        case BOTH:
+            cout << "PID controller is chosen \nENTER Position Local ENU frame [x y z]: ";
+            init_pose();
             break;
         default:
         {
@@ -211,38 +244,45 @@ int main(int argc, char **argv)
             exit(0);
         }
     }
-
+#endif /* HITL */
     ros::init(argc, argv, "offboard_node");
     ros::NodeHandle nh;
 
     ros::Subscriber state_sub = nh.subscribe<mavros_msgs::State>
-            ("mavros/state", 10, state_cb);
+        ("mavros/state", 10, state_cb);
     ros::Subscriber imu_sub = nh.subscribe<sensor_msgs::Imu>
-            ("/mavros/imu/data",10,imuCallback);
+        ("/mavros/imu/data",10,imuCallback);
     ros::Subscriber local_position_sub = nh.subscribe<geometry_msgs::PoseStamped>
-            ("/mavros/local_position/pose",100,mavrosPose_Callback);
+        ("/mavros/local_position/pose",100,mavrosPose_Callback);
     ros::Publisher local_pos_pub = nh.advertise<geometry_msgs::PoseStamped>
-            ("mavros/setpoint_position/local", 10);
+        ("mavros/setpoint_position/local", 10);
     ros::ServiceClient arming_client = nh.serviceClient<mavros_msgs::CommandBool>
-            ("mavros/cmd/arming");
+        ("mavros/cmd/arming");
     ros::ServiceClient set_mode_client = nh.serviceClient<mavros_msgs::SetMode>
-            ("mavros/set_mode");
-    // ros::Subscriber pose_sub = nh.subscribe("/tf_list", 10, get_params_cb);
+        ("mavros/set_mode");
+    ros::Publisher velocity_pub   = nh.advertise <geometry_msgs::TwistStamped>
+        ("/mavros/setpoint_velocity/cmd_vel", 30 );
 
-    ros::Subscriber position_target_sub = nh.subscribe<geometry_msgs::PoseStamped>("cmd/set_pose/position1",30,set_target_position_callback);
-    // ros::Subscriber yaw_target_sub = nh.subscribe<std_msgs::Float32>("cmd/set_pose/orientation",10,set_target_yaw_callback);
-    ros::Subscriber custom_activity_sub = nh.subscribe<std_msgs::String>("cmd/set_activity/type",10,custom_activity_callback);
-    ros::Publisher velocity_pub   = nh.advertise <geometry_msgs::TwistStamped>("/mavros/setpoint_velocity/cmd_vel", 30 );
+    ros::Subscriber position_target_sub = nh.subscribe<geometry_msgs::PoseStamped>
+        ("cmd/set_pose/position1",30,set_target_position_callback);
+    // ros::Subscriber yaw_target_sub = nh.subscribe<std_msgs::Float32>
+        // ("cmd/set_pose/orientation",10,set_target_yaw_callback);
+    ros::Subscriber both_mode_sub = nh.subscribe<std_msgs::Int16>
+        ("cmd/set_mode/mode",10,both_mode_callback);
+    ros::Subscriber custom_activity_sub = nh.subscribe<std_msgs::String>
+        ("cmd/set_activity/type",10,custom_activity_callback);
+    // ros::Subscriber pose_sub = nh.subscribe
+        // ("/tf_list", 10, get_params_cb);
 
     ros::Rate rate(20.0);
-    if(mode_controll == PID)
+    if(mode_controll == PID || mode_controll == BOTH)
     {
-        pid_x.setOutputLimits(-0.5, 1.0);
-        pid_y.setOutputLimits(-0.5, 1.0);
-        pid_z.setOutputLimits(-1.0, 2.0);
-        pid_x.setOutputRampRate(20);
-        pid_y.setOutputRampRate(20);
-        pid_z.setOutputRampRate(20);
+        pid_x.setOutputLimits(-0.5, 5.0);
+        pid_y.setOutputLimits(-0.5, 5.0);
+        pid_z.setOutputLimits(-1.0, 1.0);
+        pid_x.setOutputRampRate(10);
+        pid_y.setOutputRampRate(10);
+        pid_z.setOutputRampRate(10);
     }
     /* wait for FCU connection */
     while(ros::ok() && !current_state.connected)
@@ -256,19 +296,8 @@ int main(int argc, char **argv)
     {
         local_pos_pub.publish(pose);
         ros::spinOnce();
-        rate.sleep();
+        // rate.sleep();
     }
-    // system("./scripts/gui_script.sh 0 0 \'init\'");
-    // system("./scripts/gui_script.sh 30 0.75 \'configuration files\'");
-    // system("./scripts/gui_script.sh 90 0.75 \'update registery\'");
-    // system("./scripts/gui_script.sh 100 2 \'done\'");
-    // system("printf \"\n\"");
-
-    // system("./scripts/gui_script.sh 0 0 \'init\'");
-    // system("./scripts/gui_script.sh 30 1 \'configuration files\'");
-    // system("./scripts/gui_script.sh 60 1 \'download file\'");
-    // system("./scripts/gui_script.sh 100 1 \'done\'");;
-    // cout << "\n\u2705 Completed."<<endl;
 
     mavros_msgs::SetMode offb_set_mode, offset_mode;
     mavros_msgs::CommandBool arm_cmd;
@@ -282,12 +311,9 @@ int main(int argc, char **argv)
     {
 #ifdef HITL
         system("echo -n \"\e[4mWaiting for activation mode\e[0m\n\"");
-        system("echo -n \"OFFBOARD mode...\"");
-        while(current_state.mode != "OFFBOARD");
-        system("echo -e \"\\r\033[0;32m\xE2\x9C\x94\033[0m OFFBOARD ready!!!\"");
-        system("echo -n \"OFFBOARD mode...\"");
-        while(!current_state.armed);
-        system("echo -e \"\\r\033[0;32m\xE2\x9C\x94\033[0m OFFBOARD ready!!!\"");
+        system("echo -n \"OFFBOARD && ARMED mode...\"");
+        while(current_state.mode != "OFFBOARD" || !current_state.armed);
+        system("echo -e \"\\r\033[0;32m\xE2\x9C\x94\033[0m OFFBOARD && ARMED ready!!!\"");
 #else
         if (STATE_CHECK == 1)
         {
@@ -330,23 +356,21 @@ int main(int argc, char **argv)
         baygio = time(0);
         ltime = localtime(&baygio);
         outfile0 << PRECISION(vlocal_pose.pose.position.x) << " " << PRECISION(vlocal_pose.pose.position.y) << " " << PRECISION(vlocal_pose.pose.position.z) << " " << ltime->tm_min << " " << ltime->tm_sec << endl;
-        if(mode_controll == PID)
+        if(mode_controll == PID || mode_controll == BOTH)
         {
             output_x = pid_x.getOutput(PRECISION(vlocal_pose.pose.position.x), pose.pose.position.x);
             output_y = pid_y.getOutput(PRECISION(vlocal_pose.pose.position.y), pose.pose.position.y);
             output_z = pid_z.getOutput(PRECISION(vlocal_pose.pose.position.z), pose.pose.position.z);
 
-            output_x = (int)(output_x*100);
-            output_y = (int)(output_y*100);
-            output_z = (int)(output_z*100);
-            output_x = output_x/100;
-            output_y = output_y/100;
-            output_z = output_z/100;
+            output_x = PRECISION(output_x);
+            output_y = PRECISION(output_y);
+            output_z = PRECISION(output_z);
 
             var_velocity.twist.linear.x = output_x;
             var_velocity.twist.linear.y = output_y;
             var_velocity.twist.linear.z = output_z;
         }
+
         switch(mode_controll)
         {
             case LOCAL:
@@ -354,6 +378,20 @@ int main(int argc, char **argv)
                 break;
             case PID:
                 velocity_pub.publish(var_velocity);
+                break;
+            case BOTH:
+                if ( mode_select == LOCAL)
+                {
+                    local_pos_pub.publish(pose);
+                }
+                else if ( mode_select == PID)
+                {
+                    velocity_pub.publish(var_velocity);
+                }
+                else
+                {
+
+                }
                 break;
             default:
                 {
