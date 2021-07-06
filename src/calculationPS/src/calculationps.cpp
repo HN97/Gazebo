@@ -242,9 +242,6 @@ static void get_params_cb(const tf2_msgs::TFMessage::ConstPtr& msg)
             y = positionaf[1]+vlocal_pose.pose.position.y;
             z = positionaf[2]+vlocal_pose.pose.position.z;
             /* Convert float round 2 */
-            x = (int)(x*100);
-            y = (int)(y*100);
-            z = (int)(z*100);
             x = PRECISION(x);
             y = PRECISION(y);
             z = PRECISION(z);
@@ -257,9 +254,9 @@ static void get_params_cb(const tf2_msgs::TFMessage::ConstPtr& msg)
             x_ = PRECISION(x_);
             y_ = PRECISION(y_);
             z_ = PRECISION(z_);
-            x_ = kalman_x.getValueKF(x_);
-            y_ = kalman_y.getValueKF(y_);
-            z_ = kalman_z.getValueKF(z_);
+            // x_ = kalman_x.getValueKF(x_);
+            // y_ = kalman_y.getValueKF(y_);
+            // z_ = kalman_z.getValueKF(z_);
         }
 
         // Aruco_check_Area(position_cam);

@@ -25,68 +25,31 @@
 #include <opencv2/imgproc.hpp>
 #include <stdint.h>
 #include "opencv2/opencv.hpp"
-#ifdef APRILTAG
-extern "C" {
-#include "apriltag.h"
-#include "tag36h11.h"
-#include "tag25h9.h"
-#include "tag16h5.h"
-#include "tagCircle21h7.h"
-#include "tagCircle49h12.h"
-#include "tagCustom48h12.h"
-#include "tagStandard41h12.h"
-#include "tagStandard52h13.h"
-#include "common/getopt.h"
-#include "apriltag_pose.h"
-}
-
-#define tagSIZE    0.355
-#define FX         1179.598752
-#define FY         1177.000389
-#define CX         928.099247
-#define CY         558.635461
-
-apriltag_detector_t *td;
-apriltag_detection_info_t info;
-#endif
 
 /******************************************************************************* 
-
  *                               Definitions 
-
  ******************************************************************************/ 
-#define SSTR(x)    static_cast<std::ostringstream&>(std::ostringstream() << std::dec << x).str()
 #define ROUND2(x)    std::round(x * 100) / 100
 #define ROUND3(x)    std::round(x * 1000) / 1000
 #define IDLOW    23
 #define IDLARGE    25
 #define SWITCH_ALTITUDE    3
-/******************************************************************************* 
 
- *                                Namespace
-
- ******************************************************************************/ 
 using namespace std;
 using namespace sensor_msgs;
 using namespace cv;
 /******************************************************************************* 
-
  *                                  Topic
-
  ******************************************************************************/ 
 /* Publisher */
-image_transport::Publisher result_img_pub_;
 image_transport::Publisher read_frame_pub;
 image_geometry::PinholeCameraModel camera_model;
 ros::Publisher tf_list_pub_;
 /******************************************************************************* 
-
  *                                 Variables 
-
  ******************************************************************************/
 /* Define global variables */
 bool camera_model_computed = false;
-bool show_detections;
 bool enable_blur;
 int blur_window_size;
 int image_fps;
@@ -100,28 +63,13 @@ Matx33d intrinsic_matrix;
 Ptr<aruco::DetectorParameters> detector_params;
 Ptr<cv::aruco::Dictionary> dictionary;
 /**/
-std::ostringstream vector_to_marker;
-
 uint8_t switch_ID      = 25;
-uint16_t halfpX = image_width/2;
-uint16_t halfpY = image_height/2;
-
-// VideoCapture cap;
-// int deviceID = 0;             // 0 = open default camera
-// int apiID = cv::CAP_ANY;
 
 /******************************************************************************* 
-
  *                                  Code 
-
  ******************************************************************************/ 
 void int_handler(int x) {
     /* disconnect and exit gracefully */
-    if(show_detections)
-    {
-        cv::destroyAllWindows();
-    }
-
     ros::shutdown();
     exit(0);
 }
@@ -133,8 +81,6 @@ tf2::Vector3 cv_vector3d_to_tf_vector3(const Vec3d &vec)
 
 tf2::Quaternion cv_vector3d_to_tf_quaternion(const Vec3d &rotation_vector)
 {
-    // Mat rotation_matrix; 
-
     auto ax    = rotation_vector[0], ay = rotation_vector[1], az = rotation_vector[2];
     auto angle = sqrt(ax * ax + ay * ay + az * az);
     auto cosa  = cos(angle * 0.5);
@@ -145,13 +91,14 @@ tf2::Quaternion cv_vector3d_to_tf_quaternion(const Vec3d &rotation_vector)
     auto qw    = cosa;
     tf2::Quaternion q;
     q.setValue(qx, qy, qz, qw);
+    /*
     double roll, pitch, yaw;
     tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
     roll  = roll*(180/3.14);
     pitch = pitch*(180/3.14);
     yaw   = yaw*(180/3.14);
     // cout << "Roll: " << roll << ", Pitch: " << pitch << ", Yaw: " << yaw << endl;
-
+    */
     return q;
 }
 
@@ -185,12 +132,10 @@ void callback(const ImageConstPtr &image_msg)
 {
     string frame_id = image_msg->header.frame_id;
     auto image = cv_bridge::toCvShare(image_msg)->image;    /* To process */
-    Mat display_image(image);    /* To display */
     vector<int> ids_m;
     vector<int> ids;
     vector<vector<Point2f>> corners, rejected;
     vector<vector<Point2f>> corners_cvt;
-    bool inArea = false;
 
     if (!camera_model_computed)
     {
@@ -203,125 +148,12 @@ void callback(const ImageConstPtr &image_msg)
         GaussianBlur(image, image, Size(blur_window_size, blur_window_size), 0, 0);
     }
 
-    line(display_image, Point(halfpX, 0), Point(halfpX, image_height), Scalar(245, 7, 96), 2);    /* y */
-    line(display_image, Point(0, halfpY), Point(image_width, halfpY), Scalar(11, 220, 93), 2);   /* x */
-
-#ifdef APRILTAG
-    Mat gray;
-    cvtColor(display_image, gray, COLOR_BGR2GRAY);
-
-    // Make an image_u8_t header for the Mat data
-    image_u8_t im =
-    {
-        .width = gray.cols,
-        .height = gray.rows,
-        .stride = gray.cols,
-        .buf = gray.data
-    };
-    zarray_t *detections = apriltag_detector_detect(td, &im);
-
-    /* Show image if no markers are detected */
-    if (0 == zarray_size(detections))
-    {
-        if (show_detections)
-        {
-            putText(display_image, "Markers not found", Point(10, 30), FONT_HERSHEY_SIMPLEX, 1, CV_RGB(255, 0, 0), 2);
-            if (result_img_pub_.getNumSubscribers() > 0)
-            {
-                result_img_pub_.publish(cv_bridge::CvImage(std_msgs::Header(), "bgr8", display_image).toImageMsg());
-            }
-        }
-    }
-
-    // Draw detection outlines
-    for (int i = 0; i < zarray_size(detections); i++)
-    {
-        apriltag_detection_t *det;
-        apriltag_pose_t pose;
-        zarray_get(detections, i, &det);
-        if (det->id == 8)
-        {
-            Mat rotation_matrix(3, 3, CV_64F);
-            Mat rvec1;
-            Vec3d rotation_vector, translation_vector;
-
-            printf("detection %3d: id %4d, hamming %d, size: %f\n", i, det->id, det->hamming, marker_size);
-            info.det = det;
-            double err = estimate_tag_pose(&info, &pose);
-            cout << "Pose estimation:" << endl;
-            cout << "x: " << pose.t->data[0] << endl;
-            cout << "y: " << pose.t->data[1] << endl;
-            cout << "z: " << pose.t->data[2] << endl;
-
-            rotation_matrix.at<double>(0,0) = pose.R->data[0];
-            rotation_matrix.at<double>(0,1) = pose.R->data[1];
-            rotation_matrix.at<double>(0,2) = pose.R->data[2];
-            rotation_matrix.at<double>(1,0) = pose.R->data[3];
-            rotation_matrix.at<double>(1,1) = pose.R->data[4];
-            rotation_matrix.at<double>(1,2) = pose.R->data[5];
-            rotation_matrix.at<double>(2,0) = pose.R->data[6];
-            rotation_matrix.at<double>(2,1) = pose.R->data[7];
-            rotation_matrix.at<double>(2,2) = pose.R->data[8];
-            Rodrigues(rotation_matrix, rvec1);
-            /* Convert Mat to Vec3d */
-            rvec1.convertTo(rotation_vector, CV_64F);
-            
-            translation_vector[0] = pose.t->data[0];
-            translation_vector[1] = pose.t->data[1];
-            translation_vector[2] = pose.t->data[2]; 
-
-           /*Publish TFs for each of the markers*/
-            static tf2_ros::TransformBroadcaster br;
-            auto stamp = ros::Time::now();
-
-            /*Create and publish tf message for each marker*/
-            tf2_msgs::TFMessage tf_msg_list;
-            geometry_msgs::TransformStamped tf_msg;
-            stringstream ss;
-
-            auto translation_vector_s = translation_vector;
-            auto rotation_vector_s    = rotation_vector;
-            auto transform          = create_transform(translation_vector_s, rotation_vector_s);
-            ss << marker_tf_prefix << det->id;
-            tf_msg.header.stamp            = stamp;
-            tf_msg.header.frame_id         = frame_id;
-            tf_msg.child_frame_id          = ss.str();
-            tf_msg.transform.translation.x = transform.getOrigin().getX();
-            tf_msg.transform.translation.y = transform.getOrigin().getY();
-            tf_msg.transform.translation.z = transform.getOrigin().getZ();
-            tf_msg.transform.rotation.x    = transform.getRotation().getX();
-            tf_msg.transform.rotation.y    = transform.getRotation().getY();
-            tf_msg.transform.rotation.z    = transform.getRotation().getZ();
-            tf_msg.transform.rotation.w    = transform.getRotation().getW();
-            tf_msg_list.transforms.push_back(tf_msg);
-            br.sendTransform(tf_msg);
-
-            if( tf_msg_list.transforms.size() )
-            {
-                tf_list_pub_.publish(tf_msg_list);
-            }
-
-        }
-
-    }
-    apriltag_detections_destroy(detections);
-
-}
-#else
     /* Detect the markers */
     aruco::detectMarkers(image, dictionary, corners, ids_m, detector_params, rejected);
 
     /* Show image if no markers are detected */
     if (ids_m.empty())
     {
-        if (show_detections)
-        {
-            putText(display_image, "Markers not found", cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 1, CV_RGB(255, 0, 0), 2);
-            if (result_img_pub_.getNumSubscribers() > 0)
-            {
-                result_img_pub_.publish(cv_bridge::CvImage(std_msgs::Header(), "bgr8", display_image).toImageMsg());
-            }
-        }
     }
 
     if(ids_m.size()>0)
@@ -343,31 +175,6 @@ void callback(const ImageConstPtr &image_msg)
 
         for (auto i = 0; i < rotation_vectors.size(); ++i)
         {
-#ifdef SITL
-            aruco::drawAxis(image, intrinsic_matrix, distortion_coefficients,
-                            rotation_vectors[i], translation_vectors[i], marker_size * 0.5f);
-            /* Display Translation vector */
-            vector_to_marker.str(std::string());
-            vector_to_marker << std::setprecision(4) << std::fixed 
-                             << "x: " << std::setw(8) << translation_vectors[i](0) << " m";
-            cv::putText( display_image, vector_to_marker.str(),
-                        cv::Point(10, 95), cv::FONT_HERSHEY_SIMPLEX, 0.8,
-                        CV_RGB(255, 255, 0), 2);
-
-            vector_to_marker.str(std::string());
-            vector_to_marker << std::setprecision(4) << std::fixed 
-                             << "y: " << std::setw(8) << translation_vectors[i](1) << " m";
-            cv::putText( display_image, vector_to_marker.str(),
-                        cv::Point(10, 120), cv::FONT_HERSHEY_SIMPLEX, 0.8,
-                        CV_RGB(255, 255, 0), 2);
-
-            vector_to_marker.str(std::string());
-            vector_to_marker << std::setprecision(4) << std::fixed 
-                             << "z: " << std::setw(8) << translation_vectors[i](2) << " m";
-            cv::putText( display_image, vector_to_marker.str(),
-                        cv::Point(10, 145), cv::FONT_HERSHEY_SIMPLEX, 0.8,
-                        CV_RGB(255, 255, 0), 2);
-#endif
             if (SWITCH_ALTITUDE > translation_vectors[0](2))
             {
                 switch_ID = IDLOW;
@@ -382,20 +189,6 @@ void callback(const ImageConstPtr &image_msg)
             ROS_INFO("y: [%f]", translation_vectors[i](1));
             ROS_INFO("z: [%f]", translation_vectors[i](2));
         }
-        /*Draw marker poses*/
-        if (show_detections)
-        {
-            aruco::drawDetectedMarkers(display_image, corners_cvt, ids);
-
-            if (result_img_pub_.getNumSubscribers() > 0)
-            {
-                for(int i = 0; i<ids.size();i++)
-                {
-                        result_img_pub_.publish(cv_bridge::CvImage(std_msgs::Header(), "bgr8", display_image).toImageMsg());
-                }
-            }
-        }
-
         /*Publish TFs for each of the markers*/
         static tf2_ros::TransformBroadcaster br;
         auto stamp = ros::Time::now();
@@ -432,138 +225,10 @@ void callback(const ImageConstPtr &image_msg)
         }
     }
 }
-#endif
 
 /*TODO: slider extension mach ne hashmap von int,array*/
-#ifdef APRILTAG
-int main(int argc, char *argv[])
-{
-    camera_model_computed = true;
-    signal(SIGINT, int_handler);
-    getopt_t *getopt = getopt_create();
-
-    getopt_add_bool(getopt, 'h', "help", 0, "Show this help");
-    getopt_add_bool(getopt, 'd', "debug", 0, "Enable debugging output (slow)");
-    getopt_add_bool(getopt, 'q', "quiet", 0, "Reduce output");
-    getopt_add_string(getopt, 'f', "family", "tagCustom48h12", "Tag family to use");
-    getopt_add_int(getopt, 't', "threads", "1", "Use this many CPU threads");
-    getopt_add_double(getopt, 'x', "decimate", "2.0", "Decimate input image by this factor");
-    getopt_add_double(getopt, 'b', "blur", "0.0", "Apply low-pass blur to input");
-    getopt_add_bool(getopt, '0', "refine-edges", 1, "Spend more time trying to align edges of tags");
-    getopt_add_int(getopt, 'c', "cam", "0", "Camera is used to get stream");
-
-    if (!getopt_parse(getopt, argc, argv, 1) ||
-            getopt_get_bool(getopt, "help")) {
-        printf("Usage: %s [options]\n", argv[0]);
-        getopt_do_usage(getopt);
-        exit(0);
-    }
-
-    // Initialize tag detector with options
-    apriltag_family_t *tf = NULL;
-    const char *famname = getopt_get_string(getopt, "family");
-    if (!strcmp(famname, "tag36h11")) {
-        tf = tag36h11_create();
-    } else if (!strcmp(famname, "tag25h9")) {
-        tf = tag25h9_create();
-    } else if (!strcmp(famname, "tag16h5")) {
-        tf = tag16h5_create();
-    } else if (!strcmp(famname, "tagCircle21h7")) {
-        tf = tagCircle21h7_create();
-    } else if (!strcmp(famname, "tagCircle49h12")) {
-        tf = tagCircle49h12_create();
-    } else if (!strcmp(famname, "tagStandard41h12")) {
-        tf = tagStandard41h12_create();
-    } else if (!strcmp(famname, "tagStandard52h13")) {
-        tf = tagStandard52h13_create();
-    } else if (!strcmp(famname, "tagCustom48h12")) {
-        tf = tagCustom48h12_create();
-    } else {
-        printf("Unrecognized tag family name. Use e.g. \"tag36h11\".\n");
-        exit(-1);
-    }
-
-
-    td = apriltag_detector_create();
-    apriltag_detector_add_family(td, tf);
-    td->quad_decimate = getopt_get_double(getopt, "decimate");
-    td->quad_sigma = getopt_get_double(getopt, "blur");
-    td->nthreads = getopt_get_int(getopt, "threads");
-    td->debug = getopt_get_bool(getopt, "debug");
-    td->refine_edges = getopt_get_bool(getopt, "refine-edges");
-    /* First create an apriltag_detection_info_t struct using your known parameters. */
-    info.tagsize = tagSIZE;
-    info.fx = FX;
-    info.fy = FY;
-    info.cx = CX;
-    info.cy = CY;
-
-    /*Initalize ROS node*/
-    int queue_size = 10;
-    ros::init(argc, argv, "aruco_detect_node");
-    ros::NodeHandle nh("~");
-    string rgb_topic, rgb_info_topic, dictionary_name;
-
-    nh.getParam("camera", rgb_topic);
-    // nh.getParam("camera_info", rgb_info_topic);
-    nh.getParam("marker_size", marker_size);
-    nh.getParam("image_fps", image_fps);
-    nh.getParam("image_width", image_width);
-    nh.getParam("image_height", image_height);
-    nh.getParam("tf_prefix", marker_tf_prefix);
-    nh.getParam("enable_blur", enable_blur);
-    nh.getParam("blur_window_size", blur_window_size);
-    nh.getParam("show_detections", show_detections);
-
-
-    /* camera */
-    ros::Subscriber rgb_sub = nh.subscribe(rgb_topic.c_str(), queue_size, callback);
-    // ros::Subscriber rgb_info_sub = nh.subscribe(rgb_info_topic.c_str(), queue_size, callback_camera_info);
-    // ros::Subscriber parameter_sub = nh.subscribe("/update_params", queue_size, update_params_cb);
-    /*Publisher:*/
-    image_transport::ImageTransport it(nh);
-    result_img_pub_ = it.advertise("/result_img", 10);
-    read_frame_pub  = it.advertise("/camera/color/image_raw", 10);
-    tf_list_pub_    = nh.advertise<tf2_msgs::TFMessage>("/tf_list", 1000);
-    ros::spin();
-
-    /* Free Memory */
-    apriltag_detector_destroy(td);
-
-    if (!strcmp(famname, "tag36h11")) {
-        tag36h11_destroy(tf);
-    } else if (!strcmp(famname, "tag25h9")) {
-        tag25h9_destroy(tf);
-    } else if (!strcmp(famname, "tag16h5")) {
-        tag16h5_destroy(tf);
-    } else if (!strcmp(famname, "tagCircle21h7")) {
-        tagCircle21h7_destroy(tf);
-    } else if (!strcmp(famname, "tagCircle49h12")) {
-        tagCircle49h12_destroy(tf);
-    } else if (!strcmp(famname, "tagStandard41h12")) {
-        tagStandard41h12_destroy(tf);
-    } else if (!strcmp(famname, "tagStandard52h13")) {
-        tagStandard52h13_destroy(tf);
-    } else if (!strcmp(famname, "tagCustom48h12")) {
-        tagCustom48h12_destroy(tf);
-    }
-
-
-    getopt_destroy(getopt);
-
-    return 0;
-}
-#else
-
 int main(int argc, char **argv)
 {
-
-    // cap.open(deviceID);
-    // if (!cap.isOpened()) {
-    // cerr << "ERROR! Unable to open camera\n";
-    // return -1;
-    // }
-
     map<string, aruco::PREDEFINED_DICTIONARY_NAME> dictionary_names;
     dictionary_names.insert(pair<string, aruco::PREDEFINED_DICTIONARY_NAME>("DICT_4X4_50", aruco::DICT_4X4_50));
     dictionary_names.insert(pair<string, aruco::PREDEFINED_DICTIONARY_NAME>("DICT_4X4_100", aruco::DICT_4X4_100));
@@ -600,7 +265,6 @@ int main(int argc, char **argv)
     nh.getParam("tf_prefix", marker_tf_prefix);
     nh.getParam("enable_blur", enable_blur);
     nh.getParam("blur_window_size", blur_window_size);
-    nh.getParam("show_detections", show_detections);
 
     detector_params = aruco::DetectorParameters::create();
     detector_params->cornerRefinementMethod = aruco::CORNER_REFINE_SUBPIX;
@@ -615,20 +279,9 @@ int main(int argc, char **argv)
     // ros::Subscriber parameter_sub = nh.subscribe("/update_params", queue_size, update_params_cb);
     /*Publisher:*/
     image_transport::ImageTransport it(nh);
-    result_img_pub_ = it.advertise("/result_img", 10);
     read_frame_pub  = it.advertise("/camera/color/image_raw", 10);
-    tf_list_pub_    = nh.advertise<tf2_msgs::TFMessage>("/tf_list", 1000);
+    tf_list_pub_    = nh.advertise<tf2_msgs::TFMessage>("/tf_list", 10);
     ros::spin();
-    // while(1)
-    // {
-    //     Mat frame;
-    //     cap >> frame;
-    //     if( frame.empty() ) break; // end of video stream
-    //     read_frame_pub.publish(cv_bridge::CvImage(std_msgs::Header(), "bgr8", frame).toImageMsg());
-    //       imshow("this is you, smile! :)", frame);
-    //     ros::spin();
-    // }
+
     return 0;
 }
-#endif
-

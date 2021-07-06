@@ -18,16 +18,15 @@ catkin_package(
 ## Build ##
 ###########
 
-add_definitions(-DAPRILTAG)
 add_definitions(-DSITL)
 
 include_directories(
-        ${catkin_INCLUDE_DIRS} ../../apriltag
+        ${catkin_INCLUDE_DIRS}
 )
 
 add_executable(${PROJECT_NAME}_node src/aruco_detector.cpp)
 target_link_libraries(${PROJECT_NAME}_node
-        ${catkin_LIBRARIES}   "/usr/local/lib/libapriltag.so"
+        ${catkin_LIBRARIES}
         )
 set_target_properties(${PROJECT_NAME}_node PROPERTIES OUTPUT_NAME node PREFIX "")
 
